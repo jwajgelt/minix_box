@@ -11,8 +11,9 @@ use std::{
     mem::size_of_val,
 };
 
+/// a struct representing a single, running Minix process
 pub struct MinixProcess {
-    pub pid: Pid,
+    pid: Pid,
 }
 
 impl MinixProcess {
@@ -40,6 +41,10 @@ impl MinixProcess {
             Err(e) => Err(e),
         }
     }
+    
+    pub fn pid(self: &Self) -> Pid {
+        self.pid
+    }
 
     /// returns the values of registers in the traced process
     pub fn get_regs(self: &Self) -> Result<user_regs_struct, nix::Error> {
@@ -56,15 +61,18 @@ impl MinixProcess {
     /// reads a message the process is sending:
     /// reads 64 bytes from memory pointed to
     /// by the eax register
-    pub fn retrieve_message(self: &Self) -> Result<[u8; MESSAGE_SIZE], nix::Error> {
-        let mut result = [0; MESSAGE_SIZE];
+    pub fn retrieve_message(self: &Self) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
+        let mut result = [0; MESSAGE_SIZE / 8];
         let result_i64: &mut [i64; MESSAGE_SIZE / 8] =
             unsafe { &mut *(result.as_mut_ptr() as *mut [i64; MESSAGE_SIZE / 8]) };
         assert_eq!(size_of_val(&result), size_of_val(result_i64));
 
-        let addr = self.get_regs()?.rax;
+        let regs = self.get_regs()?;
+
+        // let dest = regs.rax;
+        let addr = regs.rbx;
         for (i, data) in result_i64.iter_mut().enumerate() {
-            *data = self.read(addr + i as u64)?
+            *data = self.read(addr + 8*i as u64)?
         }
 
         Ok(result)
