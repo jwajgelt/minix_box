@@ -5,8 +5,8 @@ use nix::sys::{signal::Signal::SIGSEGV, wait::WaitStatus};
 use utils::MinixProcess;
 use utils::MinixProcessTable;
 
-mod utils;
 mod ipc;
+mod utils;
 
 fn main() {
     let mut processes = MinixProcessTable::new();

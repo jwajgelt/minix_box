@@ -41,19 +41,19 @@ impl MinixProcess {
             Err(e) => Err(e),
         }
     }
-    
-    pub fn pid(self: &Self) -> Pid {
+
+    pub fn pid(&self) -> Pid {
         self.pid
     }
 
     /// returns the values of registers in the traced process
-    pub fn get_regs(self: &Self) -> Result<user_regs_struct, nix::Error> {
+    pub fn get_regs(&self) -> Result<user_regs_struct, nix::Error> {
         ptrace::getregs(self.pid)
     }
 
     /// reads one word (8 bytes) from an address
     /// in the traced process's memory
-    pub fn read(self: &Self, addr: u64) -> Result<i64, nix::Error> {
+    pub fn read(&self, addr: u64) -> Result<i64, nix::Error> {
         let addr: *mut c_void = unsafe { std::mem::transmute(addr) };
         ptrace::read(self.pid, addr)
     }
@@ -61,7 +61,7 @@ impl MinixProcess {
     /// reads a message the process is sending:
     /// reads 64 bytes from memory pointed to
     /// by the eax register
-    pub fn retrieve_message(self: &Self) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
+    pub fn retrieve_message(&self) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
         let mut result = [0; MESSAGE_SIZE / 8];
         let result_i64: &mut [i64; MESSAGE_SIZE / 8] =
             unsafe { &mut *(result.as_mut_ptr() as *mut [i64; MESSAGE_SIZE / 8]) };
@@ -72,7 +72,7 @@ impl MinixProcess {
         // let dest = regs.rax;
         let addr = regs.rbx;
         for (i, data) in result_i64.iter_mut().enumerate() {
-            *data = self.read(addr + 8*i as u64)?
+            *data = self.read(addr + 8 * i as u64)?
         }
 
         Ok(result)
@@ -82,7 +82,7 @@ impl MinixProcess {
 // since a MinixProcess value corresponds to a running process,
 // we should probably terminate the process when the value is dropped.
 impl Drop for MinixProcess {
-    fn drop(self: &mut Self) {
+    fn drop(&mut self) {
         // some thought should probably be given here,
         // let's just kill the process for now.
         // errors here can probably be safely ignored?

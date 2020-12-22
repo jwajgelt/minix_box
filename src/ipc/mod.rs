@@ -1,6 +1,5 @@
 use nix::unistd::Pid;
 
-use crate::utils::MinixProcess;
 use crate::utils::MinixProcessTable;
 
 mod ipcconst {
@@ -25,7 +24,10 @@ pub fn handle_ipc(pid: Pid, process_table: &mut MinixProcessTable) -> Result<(),
             println!("{:#010x?}", &message);
             todo!()
         }
-        _ => { 
+        ipcconst::SENDREC => {
+            todo!()
+        }
+        _ => {
             // TODO: handle everything
         }
     }
