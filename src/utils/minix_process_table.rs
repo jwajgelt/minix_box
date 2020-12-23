@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use super::MinixProcess;
 
-type Endpoint = i32;
+pub type Endpoint = i32;
 
 const MAX_PROCESSES: usize = 256;
 
@@ -37,15 +37,19 @@ impl MinixProcessTable {
     /// returns a reference to the MinixProcess struct
     /// with the given (Linux) pid
     pub fn get_by_pid(&self, pid: Pid) -> Option<&MinixProcess> {
-        let idx = *self.pid_map.get(&pid)?;
+        let idx = self.pid_to_endpoint(pid)? as usize;
         self.table[idx].as_ref()
     }
 
-    /// returns a mutable reference to the MinixProcess struct
-    /// with the given (Linux) pid
-    pub fn get_mut_by_pid(&mut self, pid: Pid) -> Option<&mut MinixProcess> {
-        let idx = *self.pid_map.get(&pid)?;
-        self.table[idx].as_mut()
+    // /// returns a mutable reference to the MinixProcess struct
+    // /// with the given (Linux) pid
+    // pub fn get_mut_by_pid(&mut self, pid: Pid) -> Option<&mut MinixProcess> {
+    //     let idx = self.pid_to_endpoint(pid)? as usize;
+    //     self.table[idx].as_mut()
+    // }
+
+    pub fn pid_to_endpoint(&self, pid: Pid) -> Option<Endpoint> {
+        self.pid_map.get(&pid).map(|v| *v as Endpoint)
     }
 
     pub fn insert(&mut self, proc: MinixProcess, endpoint: Endpoint) -> Result<(), ()> {

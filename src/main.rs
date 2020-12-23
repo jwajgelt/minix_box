@@ -1,4 +1,3 @@
-use nix::sys::ptrace;
 use nix::sys::wait::wait;
 use nix::sys::{signal::Signal::SIGSEGV, wait::WaitStatus};
 
@@ -23,8 +22,18 @@ fn main() {
             WaitStatus::Stopped(pid, SIGSEGV) => {
                 // TODO: on SIGSEGV, check if segfault was caused by INT 0x20 or INT 0x21
                 // if yes, we've got a kernel call / ipc call
-                // else, cause minix SIGSEGV in process\
-                let _ = ipc::handle_ipc(pid, &mut processes);
+                // else, cause minix SIGSEGV in process
+                let caller_endpoint = processes.pid_to_endpoint(pid).unwrap(); // these unwraps should - in general - be safe, since the only children should be minix processes
+                println!(
+                    "rip: {:#010x?}",
+                    processes
+                        .get(caller_endpoint)
+                        .unwrap()
+                        .get_regs()
+                        .unwrap()
+                        .rip
+                );
+                let _ = ipc::handle_ipc(caller_endpoint, &mut processes);
             }
             WaitStatus::Stopped(pid, sig) => {
                 // received other signal than SIGSEGV
@@ -32,7 +41,7 @@ fn main() {
                 // think about how to resume the process
                 // (probably will clear up after investigating
                 // how Minix handles signals)
-                let _ = ptrace::cont(pid, sig);
+                let _ = processes.get_by_pid(pid).unwrap().cause_signal(sig);
             }
             WaitStatus::Exited(_, _) => {} // process exited normally. TODO: what to do?
             WaitStatus::Signaled(_, _, _) => {} // process was killed by a (linux) signal. Problematic?
