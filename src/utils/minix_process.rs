@@ -17,6 +17,11 @@ pub enum ProcessState {
     Receiving(Endpoint),
 }
 
+pub enum Instruction {
+    Int(u8), // programmable interrupt
+    Other,
+}
+
 /// a struct representing a single, running Minix process
 pub struct MinixProcess {
     pid: Pid,
@@ -114,6 +119,19 @@ impl MinixProcess {
             self.write(addr + 8 * i as u64, data)?;
         }
         Ok(())
+    }
+
+    pub fn read_instruction(&self) -> Result<Instruction, nix::Error> {
+        let regs = self.get_regs()?;
+        let data: [u8; 8] = unsafe { std::mem::transmute(self.read(regs.rip)?) };
+
+        let result = if data[0] == 0xCD {
+            Instruction::Int(data[1])
+        } else {
+            Instruction::Other
+        };
+
+        Ok(result)
     }
 
     /// cause a signal in the minix process

@@ -7,7 +7,7 @@ mod ipcconst {
     pub const SENDREC: u64 = 3;
 }
 
-pub fn handle_ipc(
+pub fn do_ipc(
     caller_endpoint: Endpoint,
     process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
@@ -18,6 +18,7 @@ pub fn handle_ipc(
     process.set_regs(regs).unwrap();
 
     // the ecx register contains the type of ipc call
+    // TODO: export match arms to their own functions
     match regs.rcx {
         ipcconst::SEND => {
             // dest-src in eax register
@@ -26,14 +27,11 @@ pub fn handle_ipc(
             match process_table.get_mut(receive_endpoint) {
                 Some(receiver) => {
                     if let ProcessState::Receiving(sender) = receiver.state {
-                        if sender == caller_endpoint { // TODO: or ANY
+                        // TODO: or ANY
+                        if sender == caller_endpoint {
                             // write the message to the receiver's memory
                             // and resume it
                             receiver.write_message(message).unwrap(); // TODO: error handling everywhere
-                            println!(
-                                "message after receive: {:#010x?}",
-                                &receiver.read_message().unwrap()
-                            );
                             receiver.state = ProcessState::Running;
                             receiver.cont().unwrap();
 
@@ -48,7 +46,7 @@ pub fn handle_ipc(
                     let sender = process_table.get_mut(caller_endpoint).unwrap(); // unwrap here is safe, like above
                     sender.state = ProcessState::Sending(receive_endpoint);
                     // we don't resume the sender, since it's supposed to be blocked on send
-                    return Ok(());
+                    Ok(())
                 }
                 None => {
                     // bad endpoint - minix returns EDEADSRCDST here
@@ -77,10 +75,6 @@ pub fn handle_ipc(
 
                             let receiver = process_table.get(caller_endpoint).unwrap(); // again, unwrap here is safe
                             receiver.write_message(message).unwrap();
-                            println!(
-                                "message after receive: {:#010x?}",
-                                &receiver.read_message().unwrap()
-                            );
                             receiver.cont().unwrap();
 
                             // TODO: before returning, we should set the return value in
@@ -92,7 +86,7 @@ pub fn handle_ipc(
                     let receiver = process_table.get_mut(caller_endpoint).unwrap(); // unwrap here is safe, again
                     receiver.state = ProcessState::Receiving(send_endpoint);
                     // don't resume the receiver here, since it's supposed to be blocked on receive
-                    return Ok(());
+                    Ok(())
                 }
                 None => {
                     // bad endpoint - minix returns EDEADSRCDST here
