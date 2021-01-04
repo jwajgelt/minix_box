@@ -11,6 +11,7 @@ use std::{
     mem::size_of_val,
 };
 
+#[derive(Clone, Copy)]
 pub enum ProcessState {
     Running,
     Sending(Endpoint),
