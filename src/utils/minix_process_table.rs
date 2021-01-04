@@ -1,6 +1,6 @@
 use array_init::array_init;
 use nix::unistd::Pid;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::{Index, IndexMut}};
 
 use super::MinixProcess;
 
@@ -70,6 +70,22 @@ impl MinixProcessTable {
             self.pid_map.remove(&process.pid());
         };
         process
+    }
+}
+
+// Index and IndexMut implementations, for getting a process
+// in situations, where we know the endpoint is valid
+impl Index<Endpoint> for MinixProcessTable {
+    type Output = MinixProcess;
+
+    fn index(&self, index: Endpoint) -> &Self::Output {
+        self.get(index).unwrap()
+    }
+}
+
+impl IndexMut<Endpoint> for MinixProcessTable {
+    fn index_mut(&mut self, index: Endpoint) -> &mut Self::Output {
+        self.get_mut(index).unwrap()
     }
 }
 

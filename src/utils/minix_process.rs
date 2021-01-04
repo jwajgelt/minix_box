@@ -121,6 +121,9 @@ impl MinixProcess {
         Ok(())
     }
 
+    /// reads one word from the address pointed to by the
+    /// eip register, and returns a value corresponding
+    /// to one of the relevant (to us) x86 instructions
     pub fn read_instruction(&self) -> Result<Instruction, nix::Error> {
         let regs = self.get_regs()?;
         let data: [u8; 8] = unsafe { std::mem::transmute(self.read(regs.rip)?) };
