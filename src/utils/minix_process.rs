@@ -16,6 +16,7 @@ pub enum ProcessState {
     Running,
     Sending(Endpoint),
     Receiving(Endpoint),
+    SendReceiving(Endpoint),
 }
 
 pub enum Instruction {

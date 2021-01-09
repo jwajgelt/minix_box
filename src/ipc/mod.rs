@@ -1,3 +1,5 @@
+use endpoint::ANY;
+
 use crate::utils::Endpoint;
 use crate::utils::{MinixProcessTable, ProcessState};
 
@@ -49,9 +51,9 @@ pub fn do_ipc(
     }
 
     // check the source / destination is valid
-    if process_table.get(dest_src).is_none() {
+    if dest_src != ANY && process_table.get(dest_src).is_none() {
         // return EDEADSRCDST in process
-        todo!();
+        todo!("Handle invalid endpoints.");
     }
 
     // TODO: if call is SEND, SENDNB, SENDREC or NOTIFY, verify
@@ -65,47 +67,83 @@ pub fn do_ipc(
     // the ecx register contains the type of ipc call
     match call_nr {
         // TODO: handle everything
-        ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table),
-        ipcconst::RECEIVE => do_receive(dest_src, caller_endpoint, process_table),
-        ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table),
+        ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table)?,
+        ipcconst::RECEIVE => do_receive(caller_endpoint, dest_src, process_table)?,
+        ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table)?,
         _ => {
             // invalid call number - return EBADCALL in process
             todo!()
         }
-    }
+    };
+
+    // if the caller doesn't have any ipc state set,
+    // resume it
+    if let ProcessState::Running = process_table[caller_endpoint].state {
+        process_table[caller_endpoint].cont()?;
+    };
+
+    Ok(())
 }
 
 fn do_send(
-    from: Endpoint,
-    to: Endpoint,
+    caller: Endpoint,
+    dst: Endpoint,
     process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
-    let message = process_table[from].read_message().unwrap(); // if error here, cause error in process?
+    // check if `dst` is blocked waiting for this message
+    if will_receive(caller, dst, process_table) {
+        // TODO: here, Minix checks if message comes from the kernel
+        // and does so magic if so - might want to think this through
+        let mut message = process_table[caller].read_message()?; // TODO: return EFAULT in child if read is not successful
 
-    let receiver_state = process_table[to].state;
+        // set the source of the message
+        // TODO: do the messages correctly
+        message[0] = caller as u64;
+
+        // TODO: minix sets call status in receiver here
+
+        let receiver = &mut process_table[dst];
+        // write the message to the receiver's memory
+        receiver.write_message(message).unwrap();
+
+        // TODO: set the IPC status in receiver
+
+        // unset the `RECEIVING` status in `dst`
+        receiver.state = match receiver.state {
+            ProcessState::SendReceiving(dst) => ProcessState::Sending(dst),
+            ProcessState::Receiving(_) => {
+                receiver.cont().unwrap();
+                ProcessState::Running
+            }
+            _ => unreachable!("Receiver has to be in either RECEIVE or SENDRECEIVE"),
+        }
+    } else {
+        // TODO: Minix checks for a possible deadlock,
+        // and returns ELOCKED in sender if detected
+
+        // set the sender's state as SENDING to the receiver
+        // this blocks the sender, waiting for the receiver
+        // to call `receive`
+        let sender = &mut process_table[caller];
+        sender.state = ProcessState::Sending(dst);
+
+        // TODO: Minix uses a queue to manage incoming messages
+        // here, we should add `caller` to `dst` queue
+    }
+
+    Ok(())
+}
+
+// assumes `src` and `dst` are valid endpoints
+// and will panic otherwise
+fn will_receive(src: Endpoint, dst: Endpoint, process_table: &MinixProcessTable) -> bool {
+    let receiver_state = process_table[dst].state;
 
     match receiver_state {
-        // TODO: or ANY
-        ProcessState::Receiving(sender) if sender == from => {
-            // write the message to the receiver's memory
-            // and resume it
-            let receiver = &mut process_table[to];
-            receiver.write_message(message).unwrap(); // TODO: error handling everywhere
-            receiver.state = ProcessState::Running;
-            receiver.cont().unwrap();
-
-            // resume the sender
-            let sender = &process_table[from];
-            sender.cont().unwrap();
-            return Ok(());
-        }
-        _ => {
-            // set the sender's state as SENDING to the receiver
-            let sender = &mut process_table[from];
-            sender.state = ProcessState::Sending(to);
-            // we don't resume the sender, since it's supposed to be blocked on send
-            return Ok(());
-        }
+        ProcessState::Receiving(endpoint::ANY) => true,
+        ProcessState::Receiving(sender) => sender == src,
+        ProcessState::SendReceiving(sender) => sender == src,
+        _ => false,
     }
 }
 
@@ -113,49 +151,77 @@ fn do_send(
 // NOTIFYs, async sends, we don't check flags for non-blocking, we don't do message queues,
 // we don't set the return value
 fn do_receive(
-    from: Endpoint,
-    to: Endpoint,
+    caller: Endpoint,
+    src: Endpoint,
     process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
-    // TODO: handle the case of send_endpoint being ANY
-    let sender_state = process_table[from].state;
-    match sender_state {
-        ProcessState::Sending(receiver) if receiver == to => {
-            // read the message from the sender's memory,
-            // write to to receiver's memory and resume both processes
-            let sender = &mut process_table[from];
-            let message = sender.read_message().unwrap(); // TODO: error handling
-            sender.state = ProcessState::Running;
-            sender.cont().unwrap();
+    // caller is in SENDREC, and destination wasn't ready:
+    // set the state as `SENDRECEIVING` from `src` and return
+    if let ProcessState::Sending(dst) = process_table[caller].state {
+        assert!(src == dst);
+        process_table[caller].state = ProcessState::SendReceiving(src);
+        return Ok(());
+    };
 
-            let receiver = &process_table[to];
-            receiver.write_message(message).unwrap();
-            receiver.cont().unwrap();
+    // TODO: check if there are pending notifications, except for SENDREC
 
-            // TODO: before returning, we should set the return value in
-            // receiver as well - it should be in the ebx register
-            return Ok(());
-        }
-        _ => {
-            // set the receiver's state as RECEIVING from the sender
-            let receiver = &mut process_table[to];
-            receiver.state = ProcessState::Receiving(from);
-            // don't resume the receiver here, since it's supposed to be blocked on receive
-            return Ok(());
-        }
+    // TODO: check for pending asynchronous messages
+
+    // TODO: Minix uses a caller queue for pending messages,
+    // look on the queue for an appropriate message
+    if can_receive(src, src, caller, process_table) {
+        let sender = &mut process_table[src];
+        let mut message = sender.read_message().unwrap();
+
+        // set the source of the message
+        // TODO: do the messages correctly
+        message[0] = caller as u64;
+        // unset the `SENDING` state in sender
+        sender.state = match sender.state {
+            ProcessState::SendReceiving(dst) => ProcessState::Receiving(dst),
+            ProcessState::Sending(_) => {
+                // since we're setting the state as 'running',
+                // we should resume the process
+                sender.cont().unwrap();
+                ProcessState::Running
+            }
+            _ => unreachable!("Sender has to be in either SEND or SENDRECEIVE"),
+        };
+
+        // write the message to receiver
+        let receiver = &process_table[caller];
+        receiver.write_message(message).unwrap();
+        // TODO: set the IPC status here
+        return Ok(());
     }
+
+    // TODO: check if `receive` is non-blocking
+    // if so, return ENOTREADY instead of blocking
+
+    // TODO: before block, check for deadlocks
+
+    // set the caller as `RECEIVING` from `src`
+    process_table[caller].state = ProcessState::Receiving(src);
+    Ok(())
+}
+
+// TODO: read what the CANRECEIVE macro actually does
+fn can_receive(
+    src: Endpoint,
+    sender: Endpoint,
+    _caller: Endpoint,
+    _process_table: &MinixProcessTable,
+) -> bool {
+    assert!(sender != ANY);
+    src == ANY || src == sender
 }
 
 fn do_sendrec(
-    _from: Endpoint,
-    _to: Endpoint,
-    _process_table: &mut MinixProcessTable,
+    caller: Endpoint,
+    dst: Endpoint,
+    process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
-    todo!()
+    do_send(caller, dst, process_table)?;
+    // TODO: set a flag stopping notifies in receive
+    do_receive(caller, dst, process_table)
 }
-// #[repr(C)]
-// struct Message {
-//     pub m_source: Endpoint,
-//     pub m_type: i32,
-//     pub payload: [u8; 56]
-// }

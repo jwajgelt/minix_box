@@ -1,6 +1,9 @@
 use array_init::array_init;
 use nix::unistd::Pid;
-use std::{collections::BTreeMap, ops::{Index, IndexMut}};
+use std::{
+    collections::BTreeMap,
+    ops::{Index, IndexMut},
+};
 
 use super::MinixProcess;
 
