@@ -47,6 +47,8 @@ impl MinixProcess {
                     state: ProcessState::Running,
                 };
 
+                // TODO: allocate memory for and set the ps_strings struct in child
+
                 ptrace::cont(child, None)?;
                 Ok(minix_process)
             }
