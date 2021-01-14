@@ -1,4 +1,4 @@
-use super::{Endpoint, MESSAGE_SIZE};
+use super::{message_queue::MessageQueue, Endpoint, MESSAGE_SIZE};
 use nix::libc::user_regs_struct;
 use nix::sys::ptrace;
 use nix::sys::signal::{kill, Signal};
@@ -28,6 +28,7 @@ pub enum Instruction {
 pub struct MinixProcess {
     pid: Pid,
     pub state: ProcessState,
+    pub queue: MessageQueue,
 }
 
 impl MinixProcess {
@@ -45,6 +46,7 @@ impl MinixProcess {
                 let mut minix_process = Self {
                     pid: child,
                     state: ProcessState::Running,
+                    queue: MessageQueue::new(),
                 };
 
                 // allocate memory for and set the ps_strings struct in child
@@ -195,6 +197,10 @@ impl Drop for MinixProcess {
     }
 }
 
+/// A Minix structure containing information about arguments
+/// and environment variables a process was started with.
+/// A Minix process needs the ebx register to point to this
+/// structure at startup
 #[repr(C)]
 struct PsStrings {
     ps_argvstr: u32,

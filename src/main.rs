@@ -11,6 +11,7 @@ mod utils;
 fn main() {
     let mut process_table = MinixProcessTable::new();
 
+    // TODO: move this to test files
     let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
     let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
     let _ = process_table.insert(MinixProcess::spawn("sender").unwrap(), 41);

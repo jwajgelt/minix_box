@@ -90,11 +90,12 @@ fn do_send(
     dst: Endpoint,
     process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
+    let mut message = process_table[caller].read_message()?; // TODO: return EFAULT in child if read is not successful
+
     // check if `dst` is blocked waiting for this message
     if will_receive(caller, dst, process_table) {
         // TODO: here, Minix checks if message comes from the kernel
         // and does so magic if so - might want to think this through
-        let mut message = process_table[caller].read_message()?; // TODO: return EFAULT in child if read is not successful
 
         // set the source of the message
         // TODO: do the messages correctly
@@ -105,6 +106,8 @@ fn do_send(
         let receiver = &mut process_table[dst];
         // write the message to the receiver's memory
         receiver.write_message(message).unwrap();
+
+        println!("{:016x?}", receiver.read_message().unwrap());
 
         // TODO: set the IPC status in receiver
 
@@ -127,8 +130,8 @@ fn do_send(
         let sender = &mut process_table[caller];
         sender.state = ProcessState::Sending(dst);
 
-        // TODO: Minix uses a queue to manage incoming messages
-        // here, we should add `caller` to `dst` queue
+        // add `caller` to `dst` queue
+        process_table[dst].queue.insert(caller, message);
     }
 
     Ok(())
@@ -154,34 +157,36 @@ fn do_receive(
 
     // TODO: check for pending asynchronous messages
 
-    // TODO: Minix uses a caller queue for pending messages,
     // look on the queue for an appropriate message
-    if let ProcessState::Sending(dst) = process_table[src].state {
-        if dst == caller {
-            let sender = &mut process_table[src];
-            let mut message = sender.read_message().unwrap();
+    if let Some((sender, mut message)) = process_table[caller]
+        .queue
+        .get(|sender| can_receive(src, sender))
+    {
+        // unset the `SENDING` state in sender
+        let sender = &mut process_table[sender];
+        sender.state = match sender.state {
+            ProcessState::SendReceiving(dst) => ProcessState::Receiving(dst),
+            ProcessState::Sending(_) => {
+                // since we're setting the state as 'running',
+                // we should resume the process
+                sender.cont().unwrap();
+                ProcessState::Running
+            }
+            _ => unreachable!("Sender has to be in either SEND or SENDRECEIVE"),
+        };
 
-            // set the source of the message
-            // TODO: do the messages correctly
-            message[0] = caller as u64;
-            // unset the `SENDING` state in sender
-            sender.state = match sender.state {
-                ProcessState::SendReceiving(dst) => ProcessState::Receiving(dst),
-                ProcessState::Sending(_) => {
-                    // since we're setting the state as 'running',
-                    // we should resume the process
-                    sender.cont().unwrap();
-                    ProcessState::Running
-                }
-                _ => unreachable!("Sender has to be in either SEND or SENDRECEIVE"),
-            };
+        // set the source of the message
+        // TODO: do the messages correctly
+        message[0] = caller as u64;
 
-            // write the message to receiver
-            let receiver = &process_table[caller];
-            receiver.write_message(message).unwrap();
-            // TODO: set the IPC status here
-            return Ok(());
-        }
+        // write the message to receiver
+        let receiver = &process_table[caller];
+        receiver.write_message(message).unwrap();
+
+        println!("{:016x?}", receiver.read_message().unwrap());
+
+        // TODO: set the IPC status here
+        return Ok(());
     }
 
     // TODO: check if `receive` is non-blocking
@@ -214,7 +219,7 @@ fn will_receive(src: Endpoint, dst: Endpoint, process_table: &MinixProcessTable)
     }
 }
 
-// TODO: read what the CANRECEIVE macro actually does
+// TODO: add all the things the CANRECEIVE macro actually does
 fn can_receive(receive_e: Endpoint, sender: Endpoint) -> bool {
     assert!(sender != ANY);
     // Minix checks allow_ipc_filtered_msg() here

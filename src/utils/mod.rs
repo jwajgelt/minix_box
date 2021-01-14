@@ -1,3 +1,4 @@
+mod message_queue;
 mod minix_process;
 mod minix_process_table;
 
