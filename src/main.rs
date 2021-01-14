@@ -11,15 +11,10 @@ mod utils;
 fn main() {
     let mut process_table = MinixProcessTable::new();
 
-    let sendrec_39 = MinixProcess::spawn("sendrec_39").unwrap();
-    let sendrec_40 = MinixProcess::spawn("sendrec_40").unwrap();
-    let sender = MinixProcess::spawn("sender").unwrap();
-    let receiver = MinixProcess::spawn("receiver").unwrap();
-
-    let _ = process_table.insert(sendrec_39, 39);
-    let _ = process_table.insert(sendrec_40, 40);
-    let _ = process_table.insert(sender, 41);
-    let _ = process_table.insert(receiver, 42);
+    let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
+    let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
+    let _ = process_table.insert(MinixProcess::spawn("sender").unwrap(), 41);
+    let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
 
     loop {
         match wait().unwrap() {
@@ -62,12 +57,12 @@ fn main() {
                 // how Minix handles signals)
                 let _ = process_table.get_by_pid(pid).unwrap().cause_signal(sig);
             }
-            WaitStatus::Exited(_, _) => {} // process exited normally. TODO: what to do?
-            WaitStatus::Signaled(_, _, _) => {} // process was killed by a (linux) signal. Problematic?
-            WaitStatus::PtraceEvent(_, _, _) => {} // probably unused and will be ignored
-            WaitStatus::PtraceSyscall(_) => {} // processes shouldn't call syscalls, so this should be ignored. Or kill process as misbehaving?
-            WaitStatus::Continued(_) => {} // WCONTINUED was not set, so this won't happen - ignore
-            WaitStatus::StillAlive => {}   // WNOHANG was not set, so this won't happen - ignore
+            WaitStatus::Exited(_, _) => todo!("process exited normally"),
+            WaitStatus::Signaled(_, _, _) => panic!("process was killed by a (linux) signal. Problematic?"),
+            WaitStatus::PtraceEvent(_, _, _) => unreachable!("probably unused and will be ignored"),
+            WaitStatus::PtraceSyscall(_) => todo!("processes shouldn't call syscalls, so this should be ignored. Or kill process as misbehaving?"),
+            WaitStatus::Continued(_) => unreachable!("WCONTINUED was not set, so this won't happen"),
+            WaitStatus::StillAlive => unreachable!("WNOHANG was not set, so this won't happen"),
         }
     }
 }

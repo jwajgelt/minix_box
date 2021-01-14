@@ -42,12 +42,33 @@ impl MinixProcess {
                     return Err(nix::Error::Sys(nix::errno::Errno::ECHILD)); // error doesn't make sense, should think error handling through
                 };
 
-                let minix_process = Self {
+                let mut minix_process = Self {
                     pid: child,
                     state: ProcessState::Running,
                 };
 
-                // TODO: allocate memory for and set the ps_strings struct in child
+                // allocate memory for and set the ps_strings struct in child
+                let mut regs = minix_process.get_regs()?;
+
+                // TODO: handle arguments properly: for now, we set up the process
+                // with no environment strings
+
+                // make place on the stack for the arguments,
+                // and have rbx point to the ps_strings struct
+                let ps_strings = PsStrings {
+                    ps_argvstr: regs.rsp as u32 + 4,
+                    ps_nargvstr: 1,
+                    ps_envstr: 0,
+                    ps_nenvstr: 0,
+                };
+                let ps_strings_raw: [u64; 2] = unsafe { std::mem::transmute(ps_strings) };
+
+                regs.rsp -= std::mem::size_of::<PsStrings>() as u64;
+                regs.rbx = regs.rsp;
+
+                minix_process.write_buf(regs.rbx, &ps_strings_raw)?;
+
+                minix_process.set_regs(regs)?;
 
                 ptrace::cont(child, None)?;
                 Ok(minix_process)
@@ -89,6 +110,14 @@ impl MinixProcess {
             let addr: *mut c_void = std::mem::transmute(addr);
             let data: *mut c_void = std::mem::transmute(data);
             ptrace::write(self.pid, addr, data)?;
+        }
+        Ok(())
+    }
+
+    /// writes multiple words (a multiple of 8 bytes) to an address
+    pub fn write_buf(&self, addr: u64, data: &[u64]) -> Result<(), nix::Error> {
+        for (idx, &data) in data.iter().enumerate() {
+            self.write(addr + 8 * idx as u64, data)?
         }
         Ok(())
     }
@@ -164,4 +193,12 @@ impl Drop for MinixProcess {
         // errors here can probably be safely ignored?
         let _ = kill(self.pid, Some(Signal::SIGKILL));
     }
+}
+
+#[repr(C)]
+struct PsStrings {
+    ps_argvstr: u32,
+    ps_nargvstr: u32,
+    ps_envstr: u32,
+    ps_nenvstr: u32,
 }
