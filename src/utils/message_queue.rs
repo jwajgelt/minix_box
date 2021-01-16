@@ -1,5 +1,7 @@
 // TODO: write some tests
 
+use std::collections::VecDeque;
+
 use super::Endpoint;
 
 type Message = [u64; 8];
@@ -10,7 +12,7 @@ pub struct MessageQueue {
     // Vector containing held messages. When an entry is consumed,
     // we replace it with a `None` value. When more than half of data
     // is `None`s, we remove the `None` values
-    data: Vec<Option<QueueEntry>>,
+    data: VecDeque<Option<QueueEntry>>,
 
     // counts the actual `QueueEntry`s held in data
     some_count: usize,
@@ -18,14 +20,14 @@ pub struct MessageQueue {
 impl MessageQueue {
     pub fn new() -> Self {
         Self {
-            data: vec![],
+            data: VecDeque::new(),
             some_count: 0,
         }
     }
 
     /// insert a message from sender into the queue
     pub fn insert(&mut self, sender: Endpoint, message: Message) {
-        self.data.push(Some(QueueEntry { sender, message }));
+        self.data.push_back(Some(QueueEntry { sender, message }));
         self.some_count += 1;
     }
 
@@ -45,16 +47,31 @@ impl MessageQueue {
             None
         };
 
+        // remove empty element(s) from the front
+        // there can be multiple, if we just removed the fist element,
+        // and after it there were more `None`s
+        while !self.data.is_empty() {
+            let first = self.data.pop_front().unwrap();
+            if first.is_some() {
+                self.data.push_front(first);
+                break;
+            }
+        }
+
         // remove empty element(s) from the end
         // there can be multiple, if we just removed the last element,
         // and before it there were more `None`s
-        while !self.data.is_empty() && self.data.last().unwrap().is_none() {
-            self.data.pop();
+        while !self.data.is_empty() {
+            let last = self.data.pop_back().unwrap();
+            if last.is_some() {
+                self.data.push_back(last);
+                break;
+            }
         }
 
         // if more than half of `data` is `None`s, remove them from `data`
         if self.some_count > self.data.len() / 2 {
-            // Rust's std Vector has a method for that; Nice!
+            // Rust's std Vector and VecDeque have a method for that; Nice!
             self.data.retain(Option::is_some);
         }
 
