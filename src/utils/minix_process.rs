@@ -39,9 +39,13 @@ impl MinixProcess {
         use nix::unistd::ForkResult::*;
         match unsafe { fork() } {
             Ok(Parent { child }) => {
-                if let WaitStatus::Exited(_, _) = waitpid(child, None)? {
+                let status = waitpid(child, None)?;
+                if let WaitStatus::Exited(_, _) = status {
                     return Err(nix::Error::Sys(nix::errno::Errno::ECHILD)); // error doesn't make sense, should think error handling through
                 };
+                if let WaitStatus::Signaled(_, _, _) = status {
+                    return Err(nix::Error::Sys(nix::errno::Errno::ECHILD));
+                }
 
                 let mut minix_process = Self {
                     pid: child,
@@ -100,9 +104,9 @@ impl MinixProcess {
 
     /// reads one word (8 bytes) from an address
     /// in the traced process's memory
-    pub fn read(&self, addr: u64) -> Result<i64, nix::Error> {
+    pub fn read(&self, addr: u64) -> Result<u64, nix::Error> {
         let addr = addr as *mut c_void;
-        ptrace::read(self.pid, addr)
+        Ok(ptrace::read(self.pid, addr)? as u64)
     }
 
     /// writes one word (8 bytes) to an address
@@ -129,8 +133,8 @@ impl MinixProcess {
     /// by the ebx register
     pub fn read_message(&self) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
         let mut result = [0; MESSAGE_SIZE / 8];
-        let result_i64: &mut [i64; MESSAGE_SIZE / 8] =
-            unsafe { &mut *(result.as_mut_ptr() as *mut [i64; MESSAGE_SIZE / 8]) };
+        let result_i64: &mut [u64; MESSAGE_SIZE / 8] =
+            unsafe { &mut *(result.as_mut_ptr() as *mut [u64; MESSAGE_SIZE / 8]) };
         assert_eq!(size_of_val(&result), size_of_val(result_i64));
 
         let regs = self.get_regs()?;
@@ -208,29 +212,35 @@ impl MinixProcess {
             **reg = arg;
         }
 
+        self.set_regs(regs)?;
+
         // write the `int 0x80` (trap to kernel) instruction
         // in place of the current instruction, saving the old
         // instruction to restore it later
         let instruction_addr = regs.rip;
-        let old_instruction = unsafe { std::mem::transmute(self.read(instruction_addr)?) };
-        self.write(instruction_addr, 0xCD80)?; // 0xCD80 = int 0x80
+        let old_instruction = self.read(instruction_addr)?;
+        self.write(instruction_addr, 0x80CD)?; // 0xCD80 = int 0x80
 
         // execute the syscall, by using ptrace PTRACE_SYSCALL
-        ptrace::syscall(self.pid, None)?; // TODO: error here is bad, because we just wrote to traced process's memory
+        ptrace::syscall(self.pid, None)?; // TODO: error here is bad, because we just wrote to traced process's memory and changed register values
 
         // here, traced process is stopped before entering syscall,
         // so we have to wait() for it and continue it once
+        // TODO: we should actually inspect the returned status (and handle possible errors) here,
+        // failing to do so seems especially bad
         let _status = waitpid(self.pid, None)?;
         ptrace::syscall(self.pid, None)?;
 
         let _status = waitpid(self.pid, None)?;
+
+        let after_regs = self.get_regs()?;
 
         // we are now after the syscall: restore old instructions and registers
         self.write(instruction_addr, old_instruction)?;
         self.set_regs(old_regs)?;
 
         // the result of syscall is stored in eax
-        Ok(regs.rax)
+        Ok(after_regs.rax)
     }
 }
 
@@ -255,4 +265,32 @@ struct PsStrings {
     ps_nargvstr: u32,
     ps_envstr: u32,
     ps_nenvstr: u32,
+}
+
+#[cfg(test)]
+mod tests {
+    use nix::sys::wait::WaitStatus;
+
+    use super::MinixProcess;
+
+    #[test]
+    fn do_syscall_test() {
+        let path = format!("{}/syscall", env!("CARGO_MANIFEST_DIR"));
+        let mut process = MinixProcess::spawn(&path).unwrap();
+
+        match nix::sys::wait::wait().unwrap() {
+            WaitStatus::Stopped(_, nix::sys::signal::Signal::SIGTRAP) => {
+                let written = process._do_syscall(4, &[]).unwrap(); // sys_write syscall number
+                assert_eq!(5, written);
+            }
+            _ => panic!("process wasn't stopped by SIGTRAP"),
+        };
+
+        process.cont().unwrap();
+        let status = nix::sys::wait::wait().unwrap();
+        if let WaitStatus::Exited(_, 0) = status {
+            return;
+        }
+        panic!("wrong exit");
+    }
 }
