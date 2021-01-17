@@ -101,16 +101,16 @@ impl MinixProcess {
     /// reads one word (8 bytes) from an address
     /// in the traced process's memory
     pub fn read(&self, addr: u64) -> Result<i64, nix::Error> {
-        let addr: *mut c_void = unsafe { std::mem::transmute(addr) };
+        let addr = addr as *mut c_void;
         ptrace::read(self.pid, addr)
     }
 
     /// writes one word (8 bytes) to an address
     /// in the traced process's memory
     pub fn write(&self, addr: u64, data: u64) -> Result<(), nix::Error> {
+        let addr = addr as *mut c_void;
+        let data = data as *mut c_void;
         unsafe {
-            let addr: *mut c_void = std::mem::transmute(addr);
-            let data: *mut c_void = std::mem::transmute(data);
             ptrace::write(self.pid, addr, data)?;
         }
         Ok(())
@@ -161,7 +161,7 @@ impl MinixProcess {
     /// to one of the relevant (to us) x86 instructions
     pub fn read_instruction(&self) -> Result<Instruction, nix::Error> {
         let regs = self.get_regs()?;
-        let data: [u8; 8] = unsafe { std::mem::transmute(self.read(regs.rip)?) };
+        let data: [u8; 8] = self.read(regs.rip)?.to_le_bytes();
 
         let result = if data[0] == 0xCD {
             Instruction::Int(data[1])
@@ -183,6 +183,54 @@ impl MinixProcess {
     /// resume stopped process
     pub fn cont(&self) -> Result<(), nix::Error> {
         ptrace::cont(self.pid, None)
+    }
+
+    /// do a Linux system call in the minix process
+    pub fn _do_syscall(&mut self, syscall_number: u64, args: &[u64]) -> Result<u64, nix::Error> {
+        // save the register values to be restored
+        let old_regs = self.get_regs()?;
+        let mut regs = old_regs;
+
+        // set the eax register to the syscall number
+        regs.rax = syscall_number;
+
+        // retrieve arguments from `args`
+        let mut arg_regs = [
+            &mut regs.rbx,
+            &mut regs.rcx,
+            &mut regs.rdx,
+            &mut regs.rsi,
+            &mut regs.rdi,
+            &mut regs.rbp,
+        ];
+
+        for (reg, &arg) in arg_regs.iter_mut().zip(args.iter()) {
+            **reg = arg;
+        }
+
+        // write the `int 0x80` (trap to kernel) instruction
+        // in place of the current instruction, saving the old
+        // instruction to restore it later
+        let instruction_addr = regs.rip;
+        let old_instruction = unsafe { std::mem::transmute(self.read(instruction_addr)?) };
+        self.write(instruction_addr, 0xCD80)?; // 0xCD80 = int 0x80
+
+        // execute the syscall, by using ptrace PTRACE_SYSCALL
+        ptrace::syscall(self.pid, None)?; // TODO: error here is bad, because we just wrote to traced process's memory
+
+        // here, traced process is stopped before entering syscall,
+        // so we have to wait() for it and continue it once
+        let _status = waitpid(self.pid, None)?;
+        ptrace::syscall(self.pid, None)?;
+
+        let _status = waitpid(self.pid, None)?;
+
+        // we are now after the syscall: restore old instructions and registers
+        self.write(instruction_addr, old_instruction)?;
+        self.set_regs(old_regs)?;
+
+        // the result of syscall is stored in eax
+        Ok(regs.rax)
     }
 }
 
