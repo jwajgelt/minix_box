@@ -2,8 +2,20 @@ use crate::utils::Endpoint;
 use crate::utils::MinixProcessTable;
 
 pub fn do_kernel_call(
-    _caller_endpoint: Endpoint,
-    _process_table: &mut MinixProcessTable,
+    caller_endpoint: Endpoint,
+    process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
-    todo!();
+    let process = process_table.get_mut(caller_endpoint).unwrap();
+
+    // the kernel call message address is stored
+    // in the eax register
+    let addr = process.get_regs()?.rax;
+    let message = process.read_message(addr)?;
+
+    // kernel call number is sent in the second
+    // 4-byte word of the message
+    // TODO: do the messages properly
+    let call_nr = message[0] >> 32;
+
+    todo!("Kernel call nr: {:#x} from {}", call_nr, caller_endpoint);
 }

@@ -12,10 +12,11 @@ fn main() {
     let mut process_table = MinixProcessTable::new();
 
     // TODO: move this to test files
-    let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
-    let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
-    let _ = process_table.insert(MinixProcess::spawn("sender").unwrap(), 41);
-    let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
+    // let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
+    // let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
+    // let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
+    // let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
+    let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 1);
 
     loop {
         match wait().unwrap() {

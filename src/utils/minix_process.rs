@@ -129,17 +129,13 @@ impl MinixProcess {
     }
 
     /// reads a message the process is sending:
-    /// reads 64 bytes from memory pointed to
-    /// by the ebx register
-    pub fn read_message(&self) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
+    /// reads 64 bytes from memory pointed to by `addr`
+    pub fn read_message(&self, addr: u64) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
         let mut result = [0; MESSAGE_SIZE / 8];
         let result_i64: &mut [u64; MESSAGE_SIZE / 8] =
             unsafe { &mut *(result.as_mut_ptr() as *mut [u64; MESSAGE_SIZE / 8]) };
         assert_eq!(size_of_val(&result), size_of_val(result_i64));
 
-        let regs = self.get_regs()?;
-
-        let addr = regs.rbx;
         for (i, data) in result_i64.iter_mut().enumerate() {
             *data = self.read(addr + 8 * i as u64)?
         }
@@ -148,12 +144,12 @@ impl MinixProcess {
     }
 
     /// writes a message the process is waiting for:
-    /// writes 64 bytes to memory pointed to
-    /// by the ebx register
-    pub fn write_message(&self, message: [u64; MESSAGE_SIZE / 8]) -> Result<(), nix::Error> {
-        let regs = self.get_regs()?;
-
-        let addr = regs.rbx;
+    /// writes 64 bytes to memory pointed to by `addr`
+    pub fn write_message(
+        &self,
+        addr: u64,
+        message: [u64; MESSAGE_SIZE / 8],
+    ) -> Result<(), nix::Error> {
         for (i, &data) in message.iter().enumerate() {
             self.write(addr + 8 * i as u64, data)?;
         }
@@ -219,7 +215,7 @@ impl MinixProcess {
         // instruction to restore it later
         let instruction_addr = regs.rip;
         let old_instruction = self.read(instruction_addr)?;
-        self.write(instruction_addr, 0x80CD)?; // 0xCD80 = int 0x80
+        self.write(instruction_addr, 0x80CD)?; // 0xCD80 = int 0x80, reversed because x86 is little endian
 
         // execute the syscall, by using ptrace PTRACE_SYSCALL
         ptrace::syscall(self.pid, None)?; // TODO: error here is bad, because we just wrote to traced process's memory and changed register values

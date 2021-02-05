@@ -51,9 +51,16 @@ pub fn do_ipc(
     }
 
     // check the source / destination is valid
-    if dest_src != ANY && process_table.get(dest_src).is_none() {
+    if call_nr != ipcconst::MINIX_KERNINFO
+        && dest_src != ANY
+        && process_table.get(dest_src).is_none()
+    {
         // return EDEADSRCDST in process
-        todo!("Handle invalid endpoints.");
+        todo!(
+            "Handle invalid endpoints. Endpoint: {}, call: {}",
+            dest_src,
+            call_nr
+        );
     }
 
     // TODO: if call is SEND, SENDNB, SENDREC or NOTIFY, verify
@@ -70,6 +77,12 @@ pub fn do_ipc(
         ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table)?,
         ipcconst::RECEIVE => do_receive(caller_endpoint, dest_src, process_table)?,
         ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table)?,
+        ipcconst::MINIX_KERNINFO => {
+            // ebx is the return struct ptr
+            regs.rax = -1i64 as u64;
+            regs.rbx = 0;
+            process_table[caller_endpoint].set_regs(regs)?;
+        }
         _ => {
             // invalid call number - return EBADCALL in process
             todo!()
@@ -90,7 +103,8 @@ fn do_send(
     dst: Endpoint,
     process_table: &mut MinixProcessTable,
 ) -> Result<(), nix::Error> {
-    let mut message = process_table[caller].read_message()?; // TODO: return EFAULT in child if read is not successful
+    let addr = process_table[caller].get_regs()?.rbx;
+    let mut message = process_table[caller].read_message(addr)?; // TODO: return EFAULT in child if read is not successful
 
     // check if `dst` is blocked waiting for this message
     if will_receive(caller, dst, process_table) {
@@ -105,9 +119,11 @@ fn do_send(
 
         let receiver = &mut process_table[dst];
         // write the message to the receiver's memory
-        receiver.write_message(message).unwrap();
+        let addr = receiver.get_regs().unwrap().rbx;
 
-        println!("{:016x?}", receiver.read_message().unwrap());
+        receiver.write_message(addr, message).unwrap();
+
+        println!("{:016x?}", receiver.read_message(addr).unwrap());
 
         // TODO: set the IPC status in receiver
 
@@ -181,11 +197,13 @@ fn do_receive(
 
         // write the message to receiver
         let receiver = &process_table[caller];
-        receiver.write_message(message).unwrap();
+        let addr = receiver.get_regs().unwrap().rbx;
+        receiver.write_message(addr, message).unwrap();
 
-        println!("{:016x?}", receiver.read_message().unwrap());
+        println!("{:016x?}", receiver.read_message(addr).unwrap());
 
         // TODO: set the IPC status here
+        // status is stored in the ebx register
         return Ok(());
     }
 

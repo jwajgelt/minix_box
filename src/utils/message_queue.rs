@@ -36,8 +36,7 @@ impl MessageQueue {
         let entry = self
             .data
             .iter_mut()
-            .filter(|entry| entry.is_some() && predicate(entry.as_ref().unwrap().sender))
-            .next();
+            .find(|entry| entry.is_some() && predicate(entry.as_ref().unwrap().sender));
 
         let result = if let Some(entry) = entry {
             assert!(entry.is_some());
