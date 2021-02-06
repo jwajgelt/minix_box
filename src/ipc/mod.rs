@@ -1,6 +1,4 @@
-use endpoint::ANY;
-
-use crate::utils::Endpoint;
+use crate::utils::{Endpoint, endpoint};
 use crate::utils::{MinixProcessTable, ProcessState};
 
 #[allow(dead_code)]
@@ -13,19 +11,6 @@ mod ipcconst {
     pub const SENDNB: u64 = 5; // nonblocking send
     pub const MINIX_KERNINFO: u64 = 6; // request kernel info structure
     pub const SENDA: u64 = 16; // asynchronous send
-}
-
-#[allow(dead_code)]
-mod endpoint {
-    // special endpoints defined in minix/endpoint.h
-    use crate::utils::Endpoint;
-    const ENDPOINT_GENERATION_SHIFT: Endpoint = 15;
-    const ENDPOINT_GENERATION_SIZE: Endpoint = 1 << ENDPOINT_GENERATION_SHIFT;
-    const ENDPOINT_SLOT_TOP: Endpoint = ENDPOINT_GENERATION_SIZE - 1023; // ENDPOINT_GENERATION_SIZE - MAX_NR_TASKS
-
-    pub const ANY: Endpoint = ENDPOINT_SLOT_TOP - 1;
-    pub const NONE: Endpoint = ENDPOINT_SLOT_TOP - 2;
-    pub const SELF: Endpoint = ENDPOINT_SLOT_TOP - 3;
 }
 
 /// handles the ipc calls from processes
@@ -52,7 +37,7 @@ pub fn do_ipc(
 
     // check the source / destination is valid
     if call_nr != ipcconst::MINIX_KERNINFO
-        && dest_src != ANY
+        && dest_src != endpoint::ANY
         && process_table.get(dest_src).is_none()
     {
         // return EDEADSRCDST in process
@@ -153,7 +138,7 @@ fn do_send(
     Ok(())
 }
 
-// TODO: this is, so far, very naive - we don't handle NOTIFYs, async sends, 
+// TODO: this is, so far, very naive - we don't handle NOTIFYs, async sends,
 // we don't check flags for non-blocking, we don't set the return value
 fn do_receive(
     caller: Endpoint,
@@ -237,7 +222,7 @@ fn will_receive(src: Endpoint, dst: Endpoint, process_table: &MinixProcessTable)
 
 // TODO: add all the things the CANRECEIVE macro actually does
 fn can_receive(receive_e: Endpoint, sender: Endpoint) -> bool {
-    assert!(sender != ANY);
+    assert!(sender != endpoint::ANY);
     // Minix checks allow_ipc_filtered_msg() here
-    receive_e == ANY || receive_e == sender
+    receive_e == endpoint::ANY || receive_e == sender
 }

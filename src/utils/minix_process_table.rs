@@ -6,8 +6,7 @@ use std::{
 };
 
 use super::MinixProcess;
-
-pub type Endpoint = i32;
+use super::Endpoint;
 
 const MAX_PROCESSES: usize = 256;
 

@@ -15,11 +15,11 @@ fn main() {
     let mut process_table = MinixProcessTable::new();
 
     // TODO: move this to test files
-    let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
-    let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
-    let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
-    let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
-    // let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 1);
+    // let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
+    // let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
+    // let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
+    // let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
+    let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 1);
 
     loop {
         match wait().unwrap() {
@@ -38,12 +38,12 @@ fn main() {
                     Instruction::Int(0x20) => {
                         // kernel call
                         println!("Pid {} requests kernel call", pid);
-                        let _ = sys::do_kernel_call(caller_endpoint, &mut process_table);
+                        sys::do_kernel_call(caller_endpoint, &mut process_table).unwrap();
                     }
                     Instruction::Int(0x21) => {
                         // ipc call
                         println!("Pid {}, endpoint {} requests ipc", pid, caller_endpoint);
-                        let _ = ipc::do_ipc(caller_endpoint, &mut process_table);
+                        ipc::do_ipc(caller_endpoint, &mut process_table).unwrap();
                     }
                     _ => {
                         // other

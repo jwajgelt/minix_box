@@ -6,10 +6,12 @@ use super::Endpoint;
 #[repr(C)]
 #[derive(Debug)]
 pub struct Message {
-    pub source: Endpoint,   // the endpoint sending the message
-    pub m_type: u32,        // type of the message
-    pub payload: [u64; 7],  // the payload of the message
+    pub source: Endpoint,        // the endpoint sending the message
+    pub m_type: u32,             // type of the message
+    pub payload: MessagePayload, // the payload of the message
 }
+
+pub type MessagePayload = [u64; 7];
 
 /// the size of the Message struct, in bytes,
 /// needs to be equal to this number
@@ -28,5 +30,19 @@ impl From<[u64; MESSAGE_SIZE / 8]> for Message {
 impl Into<[u64; MESSAGE_SIZE / 8]> for Message {
     fn into(self) -> [u64; 8] {
         unsafe { std::mem::transmute(self) }
+    }
+}
+
+/// this trait implements the conversions
+/// for message payload types.
+/// When implementing this trait, one should always check
+/// that size_of(Self) == size_of(MessagePayload)
+pub trait Payload: Sized {
+    fn from_payload(payload: &MessagePayload) -> Self {
+        unsafe { std::mem::transmute_copy(payload) }
+    }
+
+    fn into_payload(&self) -> MessagePayload {
+        unsafe { std::mem::transmute_copy(self) }
     }
 }

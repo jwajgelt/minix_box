@@ -1,4 +1,4 @@
-use super::{Endpoint, MESSAGE_SIZE, Message, message_queue::MessageQueue};
+use super::{message_queue::MessageQueue, Endpoint, Message, MESSAGE_SIZE};
 use nix::libc::user_regs_struct;
 use nix::sys::ptrace;
 use nix::sys::signal::{kill, Signal};
@@ -145,11 +145,7 @@ impl MinixProcess {
 
     /// writes a message the process is waiting for:
     /// writes 64 bytes to memory pointed to by `addr`
-    pub fn write_message(
-        &self,
-        addr: u64,
-        message: Message,
-    ) -> Result<(), nix::Error> {
+    pub fn write_message(&self, addr: u64, message: Message) -> Result<(), nix::Error> {
         let buf: [u64; MESSAGE_SIZE / 8] = message.into();
         for (i, &data) in buf.iter().enumerate() {
             self.write(addr + 8 * i as u64, data)?;
