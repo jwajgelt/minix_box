@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use super::Endpoint;
 
-type Message = [u64; 8];
+use super::Message;
 
 /// A message queue which is checked in ipc RETRIEVE, to
 /// check for available messages

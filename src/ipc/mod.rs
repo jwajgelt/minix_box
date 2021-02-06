@@ -61,6 +61,7 @@ pub fn do_ipc(
             dest_src,
             call_nr
         );
+        // return Ok(());
     }
 
     // TODO: if call is SEND, SENDNB, SENDREC or NOTIFY, verify
@@ -112,8 +113,7 @@ fn do_send(
         // and does so magic if so - might want to think this through
 
         // set the source of the message
-        // TODO: do the messages correctly
-        message[0] = caller as u64;
+        message.source = caller;
 
         // TODO: minix sets call status in receiver here
 
@@ -153,9 +153,8 @@ fn do_send(
     Ok(())
 }
 
-// TODO: this is, so far, very naive - we don't expect ANY as an endpoint, we don't handle
-// NOTIFYs, async sends, we don't check flags for non-blocking, we don't do message queues,
-// we don't set the return value
+// TODO: this is, so far, very naive - we don't handle NOTIFYs, async sends, 
+// we don't check flags for non-blocking, we don't set the return value
 fn do_receive(
     caller: Endpoint,
     src: Endpoint,
@@ -192,8 +191,7 @@ fn do_receive(
         };
 
         // set the source of the message
-        // TODO: do the messages correctly
-        message[0] = caller as u64;
+        message.source = caller;
 
         // write the message to receiver
         let receiver = &process_table[caller];

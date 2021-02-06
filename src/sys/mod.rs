@@ -12,10 +12,9 @@ pub fn do_kernel_call(
     let addr = process.get_regs()?.rax;
     let message = process.read_message(addr)?;
 
-    // kernel call number is sent in the second
-    // 4-byte word of the message
-    // TODO: do the messages properly
-    let call_nr = message[0] >> 32;
+    // kernel call number is sent in the 
+    // m_type field of the message
+    let call_nr = message.m_type;
 
     todo!("Kernel call nr: {:#x} from {}", call_nr, caller_endpoint);
 }

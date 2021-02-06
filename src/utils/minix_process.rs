@@ -1,4 +1,4 @@
-use super::{message_queue::MessageQueue, Endpoint, MESSAGE_SIZE};
+use super::{Endpoint, MESSAGE_SIZE, Message, message_queue::MessageQueue};
 use nix::libc::user_regs_struct;
 use nix::sys::ptrace;
 use nix::sys::signal::{kill, Signal};
@@ -57,7 +57,7 @@ impl MinixProcess {
                 let mut regs = minix_process.get_regs()?;
 
                 // TODO: handle arguments properly: for now, we set up the process
-                // with no environment strings
+                // with no arguments or environment strings
 
                 // make place on the stack for the arguments,
                 // and have rbx point to the ps_strings struct
@@ -130,7 +130,7 @@ impl MinixProcess {
 
     /// reads a message the process is sending:
     /// reads 64 bytes from memory pointed to by `addr`
-    pub fn read_message(&self, addr: u64) -> Result<[u64; MESSAGE_SIZE / 8], nix::Error> {
+    pub fn read_message(&self, addr: u64) -> Result<Message, nix::Error> {
         let mut result = [0; MESSAGE_SIZE / 8];
         let result_i64: &mut [u64; MESSAGE_SIZE / 8] =
             unsafe { &mut *(result.as_mut_ptr() as *mut [u64; MESSAGE_SIZE / 8]) };
@@ -140,7 +140,7 @@ impl MinixProcess {
             *data = self.read(addr + 8 * i as u64)?
         }
 
-        Ok(result)
+        Ok(result.into())
     }
 
     /// writes a message the process is waiting for:
@@ -148,9 +148,10 @@ impl MinixProcess {
     pub fn write_message(
         &self,
         addr: u64,
-        message: [u64; MESSAGE_SIZE / 8],
+        message: Message,
     ) -> Result<(), nix::Error> {
-        for (i, &data) in message.iter().enumerate() {
+        let buf: [u64; MESSAGE_SIZE / 8] = message.into();
+        for (i, &data) in buf.iter().enumerate() {
             self.write(addr + 8 * i as u64, data)?;
         }
         Ok(())
