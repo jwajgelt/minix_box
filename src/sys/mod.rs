@@ -1,3 +1,8 @@
+#[allow(dead_code)]
+mod types;
+#[allow(unused_imports)]
+use types::*;
+
 mod do_getinfo;
 
 use crate::utils::MinixProcessTable;
@@ -24,11 +29,12 @@ pub fn do_kernel_call(
     println!("Kernel call nr: {:#x} from {}", call_nr, caller_endpoint);
 
     if (KERNEL_CALL..(KERNEL_CALL + NR_KERNEL_CALLS)).contains(&call_nr) {
-        result = CALL_VEC[call_nr - KERNEL_CALL](caller_endpoint, message)?;
+        result = CALL_VEC[call_nr - KERNEL_CALL](caller_endpoint, message, process_table)?;
     } else {
         unimplemented!()
     }
 
+    let process = process_table.get_mut(caller_endpoint).unwrap(); // TODO: maybe pass `&mut process` to the kernel call instead of doing this?
     regs.rcx = result as u64; // TODO: is this wrong? - have to check where the return value is stored
     process.set_regs(regs)?;
     process.cont().unwrap();
@@ -40,7 +46,8 @@ pub fn do_kernel_call(
 const KERNEL_CALL: usize = 0x600;
 const NR_KERNEL_CALLS: usize = 58;
 
-type KernelCall = &'static dyn Fn(Endpoint, Message) -> Result<i32, nix::Error>;
+type KernelCall =
+    &'static dyn Fn(Endpoint, Message, &mut MinixProcessTable) -> Result<i32, nix::Error>;
 
 const CALL_VEC: [KernelCall; NR_KERNEL_CALLS] = [
     &sys_unimplemented,      // 0
@@ -103,6 +110,10 @@ const CALL_VEC: [KernelCall; NR_KERNEL_CALLS] = [
     &sys_unimplemented,      // 57
 ];
 
-fn sys_unimplemented(_: Endpoint, _: Message) -> Result<i32, nix::Error> {
+fn sys_unimplemented(
+    _: Endpoint,
+    _: Message,
+    _: &mut MinixProcessTable,
+) -> Result<i32, nix::Error> {
     unimplemented!();
 }

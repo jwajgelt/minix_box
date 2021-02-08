@@ -5,8 +5,8 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use super::MinixProcess;
 use super::Endpoint;
+use super::MinixProcess;
 
 const MAX_PROCESSES: usize = 256;
 

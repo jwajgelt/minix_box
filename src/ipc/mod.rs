@@ -1,4 +1,4 @@
-use crate::utils::{Endpoint, endpoint};
+use crate::utils::{endpoint, Endpoint};
 use crate::utils::{MinixProcessTable, ProcessState};
 
 #[allow(dead_code)]

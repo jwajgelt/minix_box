@@ -1,10 +1,44 @@
-use crate::utils::{Endpoint, Message, MessagePayload, Payload};
+use crate::utils::{Endpoint, Message, MessagePayload, MinixProcess, MinixProcessTable, Payload};
 
-pub fn do_getinfo(_caller: Endpoint, message: Message) -> Result<i32, nix::Error> {
-    let request: MessageSysGetInfo = Payload::from_payload(&message.payload);
+pub fn do_getinfo(
+    caller: Endpoint,
+    message: Message,
+    process_table: &mut MinixProcessTable,
+) -> Result<i32, nix::Error> {
+    let message: MessageSysGetInfo = Payload::from_payload(&message.payload);
 
-    println!("getinfo() unimplemented. Request:\n{:?}", request);
-    Ok(-1)
+    println!("getinfo() request {}", message.request);
+
+    match message.request {
+        request::GET_IMAGE => {
+            println!("In GET_IMAGE");
+            panic!();
+        }
+        request::GET_WHOAMI => {
+            return get_whoami(caller, process_table.get_mut(caller).unwrap());
+        }
+        request => {
+            println!("do_getinfo: invalid request {}", request);
+            return Ok(-1); // TODO: return EINVAL instead
+        }
+    }
+}
+
+fn get_whoami(caller_endpoint: Endpoint, caller: &mut MinixProcess) -> Result<i32, nix::Error> {
+    let response = MessageSysWhoAmI {
+        endpt: caller_endpoint,
+        privflags: 0,
+        initflags: 0,
+        name: [0; 44],
+    };
+
+    // write the response to the original message,
+    // pointed to by the rax register
+    // (+8, since we skip the source and type fields, and only write the payload)
+    let regs = caller.get_regs()?;
+    caller.write_buf(regs.rax + 8, &response.into_payload())?;
+
+    Ok(0)
 }
 
 /// the getinfo() kernel call request message
