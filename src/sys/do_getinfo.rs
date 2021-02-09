@@ -14,12 +14,10 @@ pub fn do_getinfo(
             println!("In GET_IMAGE");
             panic!();
         }
-        request::GET_WHOAMI => {
-            return get_whoami(caller, process_table.get_mut(caller).unwrap());
-        }
+        request::GET_WHOAMI => get_whoami(caller, process_table.get_mut(caller).unwrap()),
         request => {
             println!("do_getinfo: invalid request {}", request);
-            return Ok(-1); // TODO: return EINVAL instead
+            Ok(-1) // TODO: return EINVAL instead
         }
     }
 }
