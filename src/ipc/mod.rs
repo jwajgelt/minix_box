@@ -57,6 +57,14 @@ pub fn do_ipc(
     // Calls to the kernel may only be SENDREC because tasks always reply.
     // If illegal, return ETRAPDENIED in process.
 
+    match call_nr {
+        ipcconst::SEND => println!("Endpoint {} requests SEND.", caller_endpoint),
+        ipcconst::RECEIVE => println!("Endpoint {} requests RECEIVE.", caller_endpoint),
+        ipcconst::SENDREC => println!("Endpoint {} requests SENDREC.", caller_endpoint),
+        ipcconst::MINIX_KERNINFO => println!("Endpoint {} requests MINIX_KERNINFO.", caller_endpoint),
+        _ => todo!(), // invalid call number is invalid
+    }
+
     // the ecx register contains the type of ipc call
     match call_nr {
         // TODO: handle everything

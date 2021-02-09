@@ -16,6 +16,10 @@ pub fn do_kernel_call(
     let process = process_table.get_mut(caller_endpoint).unwrap();
     let mut regs = process.get_regs()?;
 
+    // advance the instruction pointer
+    regs.rip += 2;
+    process.set_regs(regs)?;
+
     // the kernel call message address is stored
     // in the eax register
     let addr = regs.rax;
@@ -35,9 +39,17 @@ pub fn do_kernel_call(
         unimplemented!()
     }
 
-    let process = process_table.get_mut(caller_endpoint).unwrap(); // TODO: maybe pass `&mut process` to the kernel call instead of doing this?
-    regs.rcx = result as u64; // TODO: is this wrong? - have to check where the return value is stored
-    process.set_regs(regs)?;
+    // TODO: maybe pass `&mut process` to the kernel call instead of doing this?
+    let process = process_table.get_mut(caller_endpoint).unwrap();
+    // the return value of the kernel call is put
+    // in the `m_type` field of the message
+    // TODO: some kernel calls change the message - we may skip the unnecessary
+    // reads/writes if we return this message from the kernel call and write it once
+    // here - best way would be to pass it by reference to the kernel call
+    let mut message = process.read_message(addr).unwrap(); // TODO: some error may pop up here
+    message.m_type = result as u32;
+    process.write_message(addr, message).unwrap();
+
     process.cont().unwrap();
 
     Ok(())

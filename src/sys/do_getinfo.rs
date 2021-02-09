@@ -17,7 +17,8 @@ pub fn do_getinfo(
         request::GET_WHOAMI => get_whoami(caller, process_table.get_mut(caller).unwrap()),
         request => {
             println!("do_getinfo: invalid request {}", request);
-            Ok(-1) // TODO: return EINVAL instead
+            panic!();
+            // Ok(-1) // TODO: return EINVAL instead
         }
     }
 }
