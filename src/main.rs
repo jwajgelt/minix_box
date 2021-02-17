@@ -1,7 +1,7 @@
 use nix::sys::wait::wait;
 use nix::sys::{signal::Signal::SIGSEGV, wait::WaitStatus};
 
-use utils::MinixProcessTable;
+use utils::{priv_flags, MinixProcessTable};
 use utils::{Instruction, MinixProcess};
 
 #[macro_use]
@@ -20,9 +20,20 @@ fn main() {
     // let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
     // let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
 
-    let _ = process_table.insert(MinixProcess::spawn("rs").unwrap(), utils::endpoint::RS_PROC_NR);
+    let mut rs = MinixProcess::spawn("rs").unwrap();
+    rs.s_flags = priv_flags::ROOT_SYS_PROC;
+
+    let _ = process_table.insert(rs, utils::endpoint::RS_PROC_NR);
     let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 12);
     let _ = process_table.insert(MinixProcess::spawn("ipc").unwrap(), 13);
+    let _ = process_table.insert(
+        MinixProcess::spawn("vfs").unwrap(),
+        utils::endpoint::VFS_PROC_NR,
+    );
+    let _ = process_table.insert(
+        MinixProcess::spawn("pm").unwrap(),
+        utils::endpoint::PM_PROC_NR,
+    );
 
     loop {
         match wait().unwrap() {
@@ -37,15 +48,17 @@ fn main() {
                     .read_instruction()
                     .unwrap();
 
+                let name = process_table[caller_endpoint].name.as_str();
+
                 match instruction {
                     Instruction::Int(0x20) => {
                         // kernel call
-                        println!("Pid {} requests kernel call", pid);
+                        println!("{} requests kernel call", name);
                         sys::do_kernel_call(caller_endpoint, &mut process_table).unwrap();
                     }
                     Instruction::Int(0x21) => {
                         // ipc call
-                        println!("Pid {}, endpoint {} requests ipc", pid, caller_endpoint);
+                        println!("{}, endpoint {} requests ipc", name, caller_endpoint);
                         ipc::do_ipc(caller_endpoint, &mut process_table).unwrap();
                     }
                     _ => {

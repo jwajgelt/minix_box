@@ -59,9 +59,21 @@ pub fn do_ipc(
 
     match call_nr {
         ipcconst::SEND => println!("Endpoint {} requests SEND.", caller_endpoint),
-        ipcconst::RECEIVE => println!("Endpoint {} requests RECEIVE.", caller_endpoint),
+        ipcconst::RECEIVE => {
+            let dest_name = if dest_src == endpoint::ANY {
+                "ANY"
+            } else {
+                &process_table[dest_src].name
+            };
+            println!(
+                "Endpoint {} requests RECEIVE from {}.",
+                caller_endpoint, dest_name
+            )
+        }
         ipcconst::SENDREC => println!("Endpoint {} requests SENDREC.", caller_endpoint),
-        ipcconst::MINIX_KERNINFO => println!("Endpoint {} requests MINIX_KERNINFO.", caller_endpoint),
+        ipcconst::MINIX_KERNINFO => {
+            println!("Endpoint {} requests MINIX_KERNINFO.", caller_endpoint)
+        }
         _ => todo!(), // invalid call number is invalid
     }
 

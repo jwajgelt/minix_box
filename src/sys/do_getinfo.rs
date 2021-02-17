@@ -16,8 +16,7 @@ pub fn do_getinfo(
         }
         request::GET_WHOAMI => get_whoami(caller, process_table.get_mut(caller).unwrap()),
         request => {
-            println!("do_getinfo: invalid request {}", request);
-            panic!();
+            panic!("do_getinfo: invalid request {}", request);
             // Ok(-1) // TODO: return EINVAL instead
         }
     }
@@ -26,7 +25,7 @@ pub fn do_getinfo(
 fn get_whoami(caller_endpoint: Endpoint, caller: &mut MinixProcess) -> Result<i32, nix::Error> {
     let response = MessageSysWhoAmI {
         endpt: caller_endpoint,
-        privflags: 0,
+        privflags: caller.s_flags as i32,
         initflags: 0,
         name: [0; 44],
     };

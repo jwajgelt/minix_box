@@ -29,6 +29,8 @@ pub struct MinixProcess {
     pid: Pid,
     pub state: ProcessState,
     pub queue: MessageQueue,
+    pub name: String,
+    pub s_flags: u16,
 }
 
 impl MinixProcess {
@@ -51,6 +53,8 @@ impl MinixProcess {
                     pid: child,
                     state: ProcessState::Running,
                     queue: MessageQueue::new(),
+                    name: path.to_string(),
+                    s_flags: 0u16,
                 };
 
                 // allocate memory for and set the ps_strings struct in child
@@ -258,6 +262,23 @@ struct PsStrings {
     ps_nargvstr: u32,
     ps_envstr: u32,
     ps_nenvstr: u32,
+}
+
+/// This module contains bits for the s_flags field
+#[allow(dead_code)]
+pub mod priv_flags {
+    pub const PREEMPTIBLE: u16 = 0x002;
+    pub const BILLABLE: u16 = 0x004;
+    pub const DYN_PRIV_ID: u16 = 0x008;
+
+    pub const SYS_PROC: u16 = 0x010;
+    pub const CHECK_IO_PORT: u16 = 0x020;
+    pub const CHECK_IRQ: u16 = 0x040;
+    pub const CHECK_MEM: u16 = 0x080;
+    pub const ROOT_SYS_PROC: u16 = 0x100;
+    pub const VM_SYS_PROC: u16 = 0x200;
+    pub const LU_SYS_PROC: u16 = 0x400;
+    pub const RST_SYS_PROC: u16 = 0x800;
 }
 
 #[cfg(test)]
