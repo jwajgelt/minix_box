@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 mod types;
 #[allow(unused_imports)]
-use types::*;
+pub use types::*;
 
 mod do_getinfo;
 mod do_setgrant;

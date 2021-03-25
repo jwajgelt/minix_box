@@ -3,10 +3,26 @@ mod message_queue;
 mod minix_process;
 mod minix_process_table;
 
+#[allow(dead_code)]
+pub mod minix_errno;
+
 pub use endpoint::Endpoint;
 pub use message::*;
 pub use minix_process::*;
 pub use minix_process_table::*;
+
+/// cast a slice of u8 to a slice of u64
+/// this is dangerous if the length of the original slice
+/// or the offset it begins at is not divisible by 8
+// pub fn u8_to_u64(buf: &[u8]) -> &[u64] {
+//     assert!(buf.len() % 8 == 0);
+//     unsafe {
+//         let ptr = buf.as_ptr();
+//         assert!(ptr as usize % 8 == 0);
+//         let result = std::slice::from_raw_parts(ptr as *const u64, buf.len() / 8);
+//         result
+//     }
+// }
 
 #[allow(dead_code)]
 pub mod endpoint {

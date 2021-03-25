@@ -124,6 +124,19 @@ impl MinixProcess {
         Ok(())
     }
 
+    /// writes 32 bytes to an address
+    /// in the traced process's memory
+    pub fn write_32(&self, addr: u64, data: u32) -> Result<(), nix::Error> {
+        let old_data = self.read(addr)?;
+
+        // since we're in big endian, we want our data
+        // in the more significant bits
+        let data = (data as u64) << 32;
+        let data = data & (old_data & 0x0000FFFF); // we want to keep the least significant half of the old value
+
+        self.write(addr, data)
+    }
+
     /// writes multiple words (a multiple of 8 bytes) to an address
     pub fn write_buf(&self, addr: u64, data: &[u64]) -> Result<(), nix::Error> {
         for (idx, &data) in data.iter().enumerate() {

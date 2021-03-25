@@ -26,14 +26,14 @@ fn main() {
     let _ = process_table.insert(rs, utils::endpoint::RS_PROC_NR);
     let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 12);
     let _ = process_table.insert(MinixProcess::spawn("ipc").unwrap(), 13);
-    let _ = process_table.insert(
-        MinixProcess::spawn("vfs").unwrap(),
-        utils::endpoint::VFS_PROC_NR,
-    );
-    let _ = process_table.insert(
-        MinixProcess::spawn("pm").unwrap(),
-        utils::endpoint::PM_PROC_NR,
-    );
+    // let _ = process_table.insert(
+    //     MinixProcess::spawn("vfs").unwrap(),
+    //     utils::endpoint::VFS_PROC_NR,
+    // );
+    // let _ = process_table.insert(
+    //     MinixProcess::spawn("pm").unwrap(),
+    //     utils::endpoint::PM_PROC_NR,
+    // );
 
     loop {
         match wait().unwrap() {
