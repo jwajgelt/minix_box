@@ -27,9 +27,9 @@ impl From<[u64; MESSAGE_SIZE / 8]> for Message {
     }
 }
 
-impl Into<[u64; MESSAGE_SIZE / 8]> for Message {
-    fn into(self) -> [u64; 8] {
-        unsafe { std::mem::transmute(self) }
+impl From<Message> for [u64; MESSAGE_SIZE / 8] {
+    fn from(msg: Message) -> Self {
+        unsafe { std::mem::transmute(msg) }
     }
 }
 

@@ -9,22 +9,20 @@ pub fn do_getinfo(
 ) -> Result<i32, nix::Error> {
     let message: MessageSysGetInfo = Payload::from_payload(&message.payload);
 
-    let data: &[u64];
-
     println!("getinfo() request {}", message.request);
 
     match message.request {
         request::GET_IMAGE => {
             println!("In GET_IMAGE");
-            panic!();
+            let data = crate::sys::types::BootImage::image();
+            write_result(&data, message, &mut process_table[caller])
         }
         request::GET_MONPARAMS => {
             // TODO: check what the params actually look like and implement it correctly here
-            data = &[0u64; super::MULTIBOOT_PARAM_BUF_SIZE / 8];
+            let data = [0u64; super::MULTIBOOT_PARAM_BUF_SIZE / 8];
+            write_result(&data, message, &mut process_table[caller])
         }
-        request::GET_WHOAMI => {
-            return get_whoami(caller, process_table.get_mut(caller).unwrap());
-        }
+        request::GET_WHOAMI => get_whoami(caller, &mut process_table[caller]),
         request::GET_HZ => {
             // TODO: think of a good HZ value to report
             if message.val_len > 0 && (message.val_len as usize) < 4 {
@@ -34,23 +32,26 @@ pub fn do_getinfo(
                 .get_mut(caller)
                 .unwrap()
                 .write_32(message.val_ptr as u64, 16 * 1024 * 1024)?;
-            return Ok(OK);
+            Ok(OK)
         }
         request => {
             panic!("do_getinfo: invalid request {}", request);
             // Ok(EINVAL) // TODO: return EINVAL instead
         }
-    };
+    }
+}
 
+fn write_result(
+    data: &[u64],
+    message: MessageSysGetInfo,
+    caller: &mut MinixProcess,
+) -> Result<i32, nix::Error> {
     if message.val_len > 0 && (message.val_len as usize) < data.len() / 8 {
         return Ok(E2BIG);
     }
 
     // TODO: get around the fact that we have to write 64-bit segments
-    process_table
-        .get_mut(caller)
-        .unwrap()
-        .write_buf(message.val_ptr as u64, data)?;
+    caller.write_buf(message.val_ptr as u64, data)?;
 
     Ok(OK)
 }

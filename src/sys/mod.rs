@@ -3,6 +3,8 @@ mod types;
 #[allow(unused_imports)]
 pub use types::*;
 
+mod do_diagctl;
+mod do_exit;
 mod do_getinfo;
 mod do_setgrant;
 mod do_statectl;
@@ -108,7 +110,7 @@ const CALL_VEC: [KernelCall; NR_KERNEL_CALLS] = [
     sys_unimplemented,        // 41
     sys_unimplemented,        // 42
     sys_unimplemented,        // 43
-    sys_unimplemented,        // 44
+    do_diagctl::do_diagctl,   // 44 SYS_DIAGCTL
     sys_unimplemented,        // 45
     sys_unimplemented,        // 46
     sys_unimplemented,        // 47
@@ -117,7 +119,7 @@ const CALL_VEC: [KernelCall; NR_KERNEL_CALLS] = [
     sys_unimplemented,        // 50
     sys_unimplemented,        // 51
     sys_unimplemented,        // 52
-    sys_unimplemented,        // 53
+    do_exit::do_exit,         // 53 SYS_EXIT
     sys_unimplemented,        // 54
     do_statectl::do_statectl, // 55 SYS_STATECTL
     sys_unimplemented,        // 56

@@ -124,9 +124,9 @@ fn do_send(
 
         let receiver = &mut process_table[dst];
         // write the message to the receiver's memory
-        let addr = receiver.get_regs().unwrap().rbx;
+        let addr = receiver.get_regs()?.rbx;
 
-        receiver.write_message(addr, message).unwrap();
+        receiver.write_message(addr, message)?;
 
         println!("{:016x?}", receiver.read_message(addr).unwrap());
 
@@ -136,7 +136,7 @@ fn do_send(
         receiver.state = match receiver.state {
             ProcessState::SendReceiving(dst) => ProcessState::Sending(dst),
             ProcessState::Receiving(_) => {
-                receiver.cont().unwrap();
+                receiver.cont()?;
                 ProcessState::Running
             }
             _ => unreachable!("Receiver has to be in either RECEIVE or SENDRECEIVE"),
@@ -189,7 +189,7 @@ fn do_receive(
             ProcessState::Sending(_) => {
                 // since we're setting the state as 'running',
                 // we should resume the process
-                sender.cont().unwrap();
+                sender.cont()?;
                 ProcessState::Running
             }
             _ => unreachable!("Sender has to be in either SEND or SENDRECEIVE"),
@@ -200,8 +200,8 @@ fn do_receive(
 
         // write the message to receiver
         let receiver = &process_table[caller];
-        let addr = receiver.get_regs().unwrap().rbx;
-        receiver.write_message(addr, message).unwrap();
+        let addr = receiver.get_regs()?.rbx;
+        receiver.write_message(addr, message)?;
 
         println!("{:016x?}", receiver.read_message(addr).unwrap());
 

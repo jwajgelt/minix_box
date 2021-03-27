@@ -113,6 +113,25 @@ impl MinixProcess {
         Ok(ptrace::read(self.pid, addr)? as u64)
     }
 
+    /// reads one word (8 bytes) from an address
+    /// in the traced process's memory
+    pub fn read_buf_u8(&self, addr: u64, len: usize) -> Result<Vec<u8>, nix::Error> {
+        let len64 = (len + 7) / 8; // ceil(len/8)
+        let mut buf: Vec<u8> = (0..len64)
+            .map(|idx| {
+                let addr = addr + 8 * idx as u64;
+                self.read(addr).unwrap() // issue with error handling here
+            })
+            .flat_map(|word| {
+                let bytes = unsafe { std::mem::transmute::<u64, [u8; 8]>(word) };
+                std::array::IntoIter::new(bytes)
+            })
+            .collect();
+
+        buf.resize(len, 0);
+        Ok(buf)
+    }
+
     /// writes one word (8 bytes) to an address
     /// in the traced process's memory
     pub fn write(&self, addr: u64, data: u64) -> Result<(), nix::Error> {
