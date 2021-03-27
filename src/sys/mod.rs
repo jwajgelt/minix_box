@@ -37,7 +37,7 @@ pub fn do_kernel_call(
 
     println!("Kernel call nr: {:#x} from {}", call_nr, caller_endpoint);
 
-    if (KERNEL_CALL..(KERNEL_CALL + NR_KERNEL_CALLS)).contains(&call_nr) {
+    if (KERNEL_CALL..(KERNEL_CALL + NR_SYS_CALLS)).contains(&call_nr) {
         result = CALL_VEC[call_nr - KERNEL_CALL](caller_endpoint, message, process_table)?;
     } else {
         unimplemented!()
@@ -61,11 +61,11 @@ pub fn do_kernel_call(
 
 // the kernel call numbers are defined in `include/minix/com.h`
 const KERNEL_CALL: usize = 0x600;
-const NR_KERNEL_CALLS: usize = 58;
+const NR_SYS_CALLS: usize = 58;
 
 type KernelCall = fn(Endpoint, Message, &mut MinixProcessTable) -> Result<i32, nix::Error>;
 
-const CALL_VEC: [KernelCall; NR_KERNEL_CALLS] = [
+const CALL_VEC: [KernelCall; NR_SYS_CALLS] = [
     sys_unimplemented,        // 0
     sys_unimplemented,        // 1
     sys_unimplemented,        // 2

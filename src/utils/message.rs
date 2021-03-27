@@ -42,6 +42,7 @@ pub trait Payload: Sized {
         unsafe { std::mem::transmute_copy(payload) }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn into_payload(&self) -> MessagePayload {
         unsafe { std::mem::transmute_copy(self) }
     }
