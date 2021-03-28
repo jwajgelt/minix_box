@@ -1,6 +1,7 @@
 use nix::sys::wait::wait;
 use nix::sys::{signal::Signal::SIGSEGV, wait::WaitStatus};
 
+use sys::Priv;
 use utils::{priv_flags, MinixProcessTable};
 use utils::{Instruction, MinixProcess};
 
@@ -22,6 +23,7 @@ fn main() {
 
     let mut rs = MinixProcess::spawn("rs").unwrap();
     rs.s_flags = priv_flags::ROOT_SYS_PROC;
+    rs.privileges = Some(Priv::default());
 
     let _ = process_table.insert(rs, utils::endpoint::RS_PROC_NR);
     let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 12);
@@ -48,17 +50,17 @@ fn main() {
                     .read_instruction()
                     .unwrap();
 
-                let name = process_table[caller_endpoint].name.as_str();
+                // let name = process_table[caller_endpoint].name.as_str();
 
                 match instruction {
                     Instruction::Int(0x20) => {
                         // kernel call
-                        println!("{} requests kernel call", name);
+                        // println!("{} requests kernel call", name);
                         sys::do_kernel_call(caller_endpoint, &mut process_table).unwrap();
                     }
                     Instruction::Int(0x21) => {
                         // ipc call
-                        println!("{}, endpoint {} requests ipc", name, caller_endpoint);
+                        // println!("{}, endpoint {} requests ipc", name, caller_endpoint);
                         ipc::do_ipc(caller_endpoint, &mut process_table).unwrap();
                     }
                     _ => {

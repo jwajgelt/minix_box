@@ -35,8 +35,6 @@ pub fn do_kernel_call(
     let call_nr = message.m_type as usize;
     let result;
 
-    println!("Kernel call nr: {:#x} from {}", call_nr, caller_endpoint);
-
     if (KERNEL_CALL..(KERNEL_CALL + NR_SYS_CALLS)).contains(&call_nr) {
         result = CALL_VEC[call_nr - KERNEL_CALL](caller_endpoint, message, process_table)?;
     } else {
@@ -127,9 +125,10 @@ const CALL_VEC: [KernelCall; NR_SYS_CALLS] = [
 ];
 
 fn sys_unimplemented(
-    _: Endpoint,
-    _: Message,
+    caller_endpoint: Endpoint,
+    message: Message,
     _: &mut MinixProcessTable,
 ) -> Result<i32, nix::Error> {
-    unimplemented!();
+    let call_nr = message.m_type;
+    unimplemented!("Kernel call nr: {:#x} from {}", call_nr, caller_endpoint);
 }

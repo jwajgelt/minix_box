@@ -65,3 +65,9 @@ pub mod endpoint {
     pub const INIT_PROC_NR: Endpoint = LAST_SPECIAL_PROC_NR;
     pub const NR_BOOT_MODULES: Endpoint = INIT_PROC_NR + 1;
 }
+
+pub fn as_buf_u8<T, const N: usize>(val: &T) -> [u8; N] {
+    use std::mem::size_of;
+    assert_eq!(N, size_of::<T>());
+    unsafe { std::mem::transmute_copy(val) }
+}

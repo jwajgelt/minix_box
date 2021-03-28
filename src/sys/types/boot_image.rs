@@ -24,9 +24,7 @@ impl BootImage {
     }
 
     // TODO: change this into a static constant
-    pub fn image() -> [u64; NR_BOOT_PROCS * size_of::<BootImage>() / 8] {
-        static_assertions::const_assert_eq!(0, NR_BOOT_PROCS * size_of::<BootImage>() % 8);
-
+    pub fn image() -> [u8; NR_BOOT_PROCS * size_of::<BootImage>()] {
         let image: [BootImage; NR_BOOT_PROCS] = [
             Self::new(ASYNCM, b"asyncm"),
             Self::new(IDLE, b"idle"),

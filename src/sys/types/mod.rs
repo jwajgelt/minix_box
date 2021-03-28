@@ -6,6 +6,7 @@ mod kinfo;
 
 pub use boot_image::*;
 pub use kinfo::*;
+pub use r#priv::*;
 
 pub const PROC_NAME_LEN: usize = 16;
 pub const NR_BOOT_PROCS: usize = 17;
@@ -27,8 +28,10 @@ pub struct SigSet(u32, u32, u32, u32);
 
 // r# escapes reserved names
 mod r#priv {
+    use std::mem::size_of;
+
     use super::*;
-    use crate::utils::Endpoint;
+    use crate::utils::{Endpoint, as_buf_u8};
 
     #[repr(C)]
     pub struct Priv {
@@ -80,6 +83,12 @@ mod r#priv {
     impl Default for Priv {
         fn default() -> Self {
             unsafe { std::mem::transmute([0u8; std::mem::size_of::<Self>()]) }
+        }
+    }
+
+    impl Priv {
+        pub fn as_buf(&self) -> [u8; size_of::<Priv>()] {
+            as_buf_u8(self)
         }
     }
 }

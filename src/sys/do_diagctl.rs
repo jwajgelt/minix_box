@@ -9,11 +9,8 @@ pub fn do_diagctl(
     process_table: &mut MinixProcessTable,
 ) -> Result<i32, nix::Error> {
     // I do think we care about this call
-    println!("In diagctl");
 
     let message: MessageSysDiagCtl = Payload::from_payload(&message.payload);
-
-    println!("sys_diagctl call {:#x}", message.code);
 
     match message.code {
         CODE_DIAG => {
@@ -22,7 +19,7 @@ pub fn do_diagctl(
             let mybuf = caller.read_buf_u8(message.buf as u64, message.len as usize)?;
 
             if let Ok(message) = std::str::from_utf8(&mybuf) {
-                println!("diagctl: {:?}", message);
+                println!("diagnostic: {:?}", message);
             } else {
                 println!("diagctl couldn't convert message to string");
             }

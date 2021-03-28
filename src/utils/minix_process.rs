@@ -1,3 +1,5 @@
+use crate::sys::Priv;
+
 use super::{message_queue::MessageQueue, Endpoint, Message, MESSAGE_SIZE};
 use nix::libc::user_regs_struct;
 use nix::sys::ptrace;
@@ -6,10 +8,7 @@ use nix::sys::wait::{waitpid, WaitStatus};
 use nix::unistd::execv;
 use nix::unistd::fork;
 use nix::unistd::Pid;
-use std::{
-    ffi::{c_void, CString},
-    mem::size_of_val,
-};
+use std::{ffi::{c_void, CString}, mem::size_of_val, ptr::slice_from_raw_parts};
 
 #[derive(Clone, Copy)]
 pub enum ProcessState {
@@ -31,6 +30,7 @@ pub struct MinixProcess {
     pub queue: MessageQueue,
     pub name: String,
     pub s_flags: u16,
+    pub privileges: Option<Priv>,
 }
 
 impl MinixProcess {
@@ -55,6 +55,7 @@ impl MinixProcess {
                     queue: MessageQueue::new(),
                     name: path.to_string(),
                     s_flags: 0u16,
+                    privileges: None
                 };
 
                 // allocate memory for and set the ps_strings struct in child
@@ -160,6 +161,19 @@ impl MinixProcess {
     pub fn write_buf(&self, addr: u64, data: &[u64]) -> Result<(), nix::Error> {
         for (idx, &data) in data.iter().enumerate() {
             self.write(addr + 8 * idx as u64, data)?
+        }
+        Ok(())
+    }
+
+    pub fn write_buf_u8(&self, addr: u64, data: &[u8]) -> Result<(), nix::Error> {
+        let len_64 = data.len() / 8;
+        let data_u64 = unsafe { slice_from_raw_parts(data.as_ptr() as *const u64, len_64).as_ref().unwrap() };
+        self.write_buf(addr, data_u64)?;
+        if data.len() - 8*len_64 > 0 {
+            let mut rest = [0u8; 8];
+            for (idx, &val) in data[8*len_64..].iter().enumerate() { rest[idx] = val }
+            let val_64: u64 = unsafe { std::mem::transmute(rest) };
+            self.write(addr + (8*len_64 as u64), val_64)?
         }
         Ok(())
     }

@@ -9,17 +9,19 @@ pub fn do_getinfo(
 ) -> Result<i32, nix::Error> {
     let message: MessageSysGetInfo = Payload::from_payload(&message.payload);
 
-    println!("getinfo() request {}", message.request);
-
     match message.request {
         request::GET_IMAGE => {
-            println!("In GET_IMAGE");
             let data = crate::sys::types::BootImage::image();
             write_result(&data, message, &mut process_table[caller])
         }
+        request::GET_PRIV => {
+            let caller = &mut process_table[caller];
+            let data = caller.privileges.as_ref().map(super::types::Priv::as_buf).unwrap();
+            write_result(&data, message, caller)
+        }
         request::GET_MONPARAMS => {
             // TODO: check what the params actually look like and implement it correctly here
-            let data = [0u64; super::MULTIBOOT_PARAM_BUF_SIZE / 8];
+            let data = [0u8; super::MULTIBOOT_PARAM_BUF_SIZE];
             write_result(&data, message, &mut process_table[caller])
         }
         request::GET_WHOAMI => get_whoami(caller, &mut process_table[caller]),
@@ -42,7 +44,7 @@ pub fn do_getinfo(
 }
 
 fn write_result(
-    data: &[u64],
+    data: &[u8],
     message: MessageSysGetInfo,
     caller: &mut MinixProcess,
 ) -> Result<i32, nix::Error> {
@@ -51,7 +53,7 @@ fn write_result(
     }
 
     // TODO: get around the fact that we have to write 64-bit segments
-    caller.write_buf(message.val_ptr as u64, data)?;
+    caller.write_buf_u8(message.val_ptr as u64, data)?;
 
     Ok(OK)
 }
