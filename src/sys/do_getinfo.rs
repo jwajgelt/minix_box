@@ -16,7 +16,11 @@ pub fn do_getinfo(
         }
         request::GET_PRIV => {
             let caller = &mut process_table[caller];
-            let data = caller.privileges.as_ref().map(super::types::Priv::as_buf).unwrap();
+            let data = caller
+                .privileges
+                .as_ref()
+                .map(super::types::Priv::as_buf)
+                .unwrap();
             write_result(&data, message, caller)
         }
         request::GET_MONPARAMS => {

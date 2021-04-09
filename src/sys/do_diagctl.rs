@@ -8,8 +8,6 @@ pub fn do_diagctl(
     message: Message,
     process_table: &mut MinixProcessTable,
 ) -> Result<i32, nix::Error> {
-    // I do think we care about this call
-
     let message: MessageSysDiagCtl = Payload::from_payload(&message.payload);
 
     match message.code {
@@ -26,6 +24,9 @@ pub fn do_diagctl(
 
             Ok(OK)
         }
+        // TODO: this call is not documented on the minix developer wiki
+        // and isn't well commented in the source - try to find out what
+        // exactly it does
         CODE_STACKTRACE | CODE_REGISTER | CODE_UNREGISTER => {
             unimplemented!("do_diagctl: unimplemented request {}", message.code);
         }

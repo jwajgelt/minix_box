@@ -31,7 +31,7 @@ mod r#priv {
     use std::mem::size_of;
 
     use super::*;
-    use crate::utils::{Endpoint, as_buf_u8};
+    use crate::utils::{as_buf_u8, Endpoint};
 
     #[repr(C)]
     pub struct Priv {

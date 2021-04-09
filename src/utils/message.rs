@@ -47,3 +47,5 @@ pub trait Payload: Sized {
         unsafe { std::mem::transmute_copy(self) }
     }
 }
+
+pub const NOTIFY_MESSAGE: u32 = 0x1000;

@@ -1,4 +1,4 @@
-use crate::utils::{endpoint, Endpoint};
+use crate::utils::{endpoint, Endpoint, Message, NOTIFY_MESSAGE};
 use crate::utils::{MinixProcessTable, ProcessState};
 
 #[allow(dead_code)]
@@ -79,10 +79,10 @@ pub fn do_ipc(
 
     // the ecx register contains the type of ipc call
     match call_nr {
-        // TODO: handle everything
         ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table)?,
         ipcconst::RECEIVE => do_receive(caller_endpoint, dest_src, process_table)?,
         ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table)?,
+        ipcconst::NOTIFY => do_notify(caller_endpoint, dest_src, process_table)?,
         ipcconst::MINIX_KERNINFO => {
             // ebx is the return struct ptr
             regs.rax = -1i64 as u64;
@@ -173,7 +173,22 @@ fn do_receive(
         return Ok(());
     };
 
-    // TODO: check if there are pending notifications, except for SENDREC
+    // check if there are pending notifications, except for SENDREC
+    match process_table[caller].state {
+        ProcessState::SendReceiving(_) => {}
+        _ => {
+            for (index, &src) in process_table[caller].notify_pending.iter().enumerate() {
+                if can_receive(caller, src) {
+                    let receiver = &mut process_table[caller];
+                    receiver.notify_pending.remove(index);
+                    let msg = build_notify_message(src);
+                    let addr = receiver.get_regs()?.rbx;
+                    receiver.write_message(addr, msg)?;
+                    return Ok(());
+                }
+            }
+        }
+    }
 
     // TODO: check for pending asynchronous messages
 
@@ -230,6 +245,46 @@ fn do_sendrec(
     do_receive(caller, dst, process_table)
 }
 
+fn do_notify(
+    caller: Endpoint,
+    dst: Endpoint,
+    process_table: &mut MinixProcessTable,
+) -> Result<(), nix::Error> {
+    if process_table.get(dst).is_none() {
+        // TODO: return EDEADSRCDST from ipc call
+        return Ok(());
+    }
+
+    // sadly no `or` in `if let` expressions yet
+    if !will_receive(caller, dst, process_table) {
+        process_table[dst].notify_pending.push(caller);
+        return Ok(());
+    }
+
+    // TODO: check the 'sendrecing' flag (`MF_REPLY_PEND`)
+    // once that's implemented
+
+    let msg = build_notify_message(caller);
+    let receiver = &mut process_table[dst];
+    let addr = receiver.get_regs()?.rbx;
+    receiver.write_message(addr, msg)?;
+
+    // set the receiver status to running and run it
+
+    // TODO: set the IPC status in receiver
+
+    // unset the `RECEIVING` status in `dst`
+    receiver.state = match receiver.state {
+        ProcessState::Receiving(_) => {
+            receiver.cont()?;
+            ProcessState::Running
+        }
+        _ => unreachable!("Notify receiver has to be in either RECEIVE"),
+    };
+
+    Ok(())
+}
+
 // assumes `src` and `dst` are valid endpoints
 // and will panic otherwise
 fn will_receive(src: Endpoint, dst: Endpoint, process_table: &MinixProcessTable) -> bool {
@@ -245,4 +300,15 @@ fn can_receive(receive_e: Endpoint, sender: Endpoint) -> bool {
     assert!(sender != endpoint::ANY);
     // Minix checks allow_ipc_filtered_msg() here
     receive_e == endpoint::ANY || receive_e == sender
+}
+
+// TODO:
+fn build_notify_message(src: Endpoint) -> Message {
+    let msg = Message {
+        m_type: NOTIFY_MESSAGE,
+        source: src,
+        payload: [0; 7],
+    };
+
+    msg
 }
