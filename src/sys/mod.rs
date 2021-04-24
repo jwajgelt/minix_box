@@ -68,7 +68,7 @@ const CALL_VEC: [KernelCall; NR_SYS_CALLS] = [
     sys_unimplemented,        // 1
     sys_unimplemented,        // 2
     sys_unimplemented,        // 3
-    sys_unimplemented,        // 4
+    sys_unimplemented,        // 4 SYS_PRIVCTL
     sys_unimplemented,        // 5
     sys_unimplemented,        // 6
     sys_unimplemented,        // 7

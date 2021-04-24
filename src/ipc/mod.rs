@@ -1,3 +1,4 @@
+use crate::utils::minix_errno;
 use crate::utils::{endpoint, Endpoint, Message, NOTIFY_MESSAGE};
 use crate::utils::{MinixProcessTable, ProcessState};
 
@@ -71,6 +72,10 @@ pub fn do_ipc(
             )
         }
         ipcconst::SENDREC => println!("Endpoint {} requests SENDREC.", caller_endpoint),
+        ipcconst::NOTIFY => println!(
+            "Endpoint {} requests NOTIFY to {}.",
+            caller_endpoint, dest_src
+        ),
         ipcconst::MINIX_KERNINFO => {
             println!("Endpoint {} requests MINIX_KERNINFO.", caller_endpoint)
         }
@@ -84,9 +89,21 @@ pub fn do_ipc(
         ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table)?,
         ipcconst::NOTIFY => do_notify(caller_endpoint, dest_src, process_table)?,
         ipcconst::MINIX_KERNINFO => {
+            if let None = process_table[caller_endpoint].minix_kerninfo_addr {
+                let usermapped_mem = &process_table.usermapped_mem;
+                process_table[caller_endpoint].attach_shared(usermapped_mem, crate::utils::SHARED_BASE_ADDR as u64)
+                .unwrap();
+                process_table[caller_endpoint].minix_kerninfo_addr = Some(crate::utils::SHARED_BASE_ADDR);
+            }
             // ebx is the return struct ptr
-            regs.rax = -1i64 as u64;
-            regs.rbx = 0;
+            regs.rbx = process_table[caller_endpoint]
+                .minix_kerninfo_addr
+                .unwrap() as u64;
+            regs.rax = if regs.rbx == 0 {
+                minix_errno::EDEADSRCDST
+            } else {
+                minix_errno::OK
+            } as u64;
             process_table[caller_endpoint].set_regs(regs)?;
         }
         _ => {
@@ -302,13 +319,11 @@ fn can_receive(receive_e: Endpoint, sender: Endpoint) -> bool {
     receive_e == endpoint::ANY || receive_e == sender
 }
 
-// TODO:
+// TODO: fill the notify with payload when appropriate
 fn build_notify_message(src: Endpoint) -> Message {
-    let msg = Message {
+    Message {
         m_type: NOTIFY_MESSAGE,
         source: src,
         payload: [0; 7],
-    };
-
-    msg
+    }
 }

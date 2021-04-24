@@ -37,7 +37,7 @@ pub fn do_getinfo(
             process_table
                 .get_mut(caller)
                 .unwrap()
-                .write_32(message.val_ptr as u64, 16 * 1024 * 1024)?;
+                .write_32(message.val_ptr as u64, crate::HZ)?;
             Ok(OK)
         }
         request => {

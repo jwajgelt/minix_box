@@ -1,6 +1,6 @@
 use crate::sys::Priv;
 
-use super::{message_queue::MessageQueue, Endpoint, Message, MESSAGE_SIZE};
+use super::{message_queue::MessageQueue, Endpoint, Message, SharedMemory, MESSAGE_SIZE};
 use nix::libc::user_regs_struct;
 use nix::sys::ptrace;
 use nix::sys::signal::{kill, Signal};
@@ -36,6 +36,7 @@ pub struct MinixProcess {
     pub s_flags: u16,
     pub privileges: Option<Priv>,
     pub notify_pending: Vec<Endpoint>,
+    pub minix_kerninfo_addr: Option<u32>,
 }
 
 impl MinixProcess {
@@ -54,7 +55,7 @@ impl MinixProcess {
                     return Err(nix::Error::Sys(nix::errno::Errno::ECHILD));
                 }
 
-                let mut minix_process = Self {
+                let minix_process = Self {
                     pid: child,
                     state: ProcessState::Running,
                     queue: MessageQueue::new(),
@@ -62,6 +63,7 @@ impl MinixProcess {
                     s_flags: 0u16,
                     privileges: None,
                     notify_pending: vec![],
+                    minix_kerninfo_addr: None,
                 };
 
                 // allocate memory for and set the ps_strings struct in child
@@ -109,7 +111,7 @@ impl MinixProcess {
     }
 
     /// sets the values of registers in the traced process
-    pub fn set_regs(&mut self, regs: user_regs_struct) -> Result<(), nix::Error> {
+    pub fn set_regs(&self, regs: user_regs_struct) -> Result<(), nix::Error> {
         ptrace::setregs(self.pid, regs)
     }
 
@@ -245,7 +247,7 @@ impl MinixProcess {
     }
 
     /// do a Linux system call in the minix process
-    pub fn _do_syscall(&mut self, syscall_number: u64, args: &[u64]) -> Result<u64, nix::Error> {
+    pub fn _do_syscall(&self, syscall_number: u64, args: &[u64]) -> Result<u64, nix::Error> {
         // save the register values to be restored
         let old_regs = self.get_regs()?;
         let mut regs = old_regs;
@@ -296,6 +298,54 @@ impl MinixProcess {
 
         // the result of syscall is stored in eax
         Ok(after_regs.rax)
+    }
+
+    /// attaches memory represented by the SharedMemory struct
+    /// in the process at the given address.
+    /// It's important that the SharedMemory struct is created
+    /// before the process we're attaching to (since we rely on the
+    /// file descriptor of the shared memory)
+    pub fn attach_shared(&self, shared: &SharedMemory, addr: u64) -> Result<(), nix::Error> {
+        // not going to work, mmap uses too many arguments
+        let syscall_number = 90; // mmap syscall number
+        let mmap_args: [u32; 6] = [
+            addr as u32,       // address to map to
+            shared.len as u32, // length of mapped memory
+            0x1,               // file access, set to PROT_READ
+            0x1 | 0x10,        // mmap flags, set to MAP_SHARED | MAP_FIXED
+            shared.fd as u32,  // file descriptor to be mapped
+            0,                 // offset
+        ];
+
+        // get the mmap args as a byte slice
+        let len = size_of_val(&mmap_args);
+        let raw_args = unsafe { std::slice::from_raw_parts(mmap_args.as_ptr() as *const u8, len) };
+
+        // get the stack address
+        let regs = self.get_regs()?;
+        let args_addr = regs.rsp - len as u64;
+
+        // write the mmap_args to the process's stack
+        // the can process use the values stored _below_ rsp
+        // we should save them and restore after the syscall
+        let old_data = self.read_buf_u8(args_addr, len)?;
+        self.write_buf_u8(args_addr, raw_args)?;
+
+        // do mmap system call, with the arguments stored in a struct
+        // on the top of the stack
+        // TODO: alignment of the args may be wrong, depending on rsp
+        let result = self._do_syscall(syscall_number, &[args_addr])?;
+
+        // mmap failed or mapped to wrong address (for some reason?)
+        if result as u32 != addr as u32 {
+            // TODO: just return an error
+            panic!("Error in mmap in child process: {}", result as i32);
+        }
+
+        // restore the old values on the stack
+        self.write_buf_u8(args_addr, &old_data)?;
+
+        Ok(())
     }
 }
 
@@ -348,7 +398,7 @@ mod tests {
     #[test]
     fn do_syscall_test() {
         let path = format!("{}/syscall", env!("CARGO_MANIFEST_DIR"));
-        let mut process = MinixProcess::spawn(&path).unwrap();
+        let process = MinixProcess::spawn(&path).unwrap();
 
         match nix::sys::wait::wait().unwrap() {
             WaitStatus::Stopped(_, nix::sys::signal::Signal::SIGTRAP) => {
@@ -361,6 +411,33 @@ mod tests {
         process.cont().unwrap();
         let status = nix::sys::wait::wait().unwrap();
         if let WaitStatus::Exited(_, 0) = status {
+            return;
+        }
+        panic!("wrong exit");
+    }
+
+    #[test]
+    fn attach_shared_test() {
+        use crate::utils::SharedMemory;
+
+        let shared_mem = SharedMemory::new("test", std::mem::size_of::<i32>()).unwrap();
+        shared_mem.write(0, &42i32).unwrap();
+
+        let path = format!("{}/attach", env!("CARGO_MANIFEST_DIR"));
+        let process = MinixProcess::spawn(&path).unwrap();
+
+        let addr = 0xf1002000u32;
+
+        match nix::sys::wait::wait().unwrap() {
+            WaitStatus::Stopped(_, nix::sys::signal::Signal::SIGTRAP) => {
+                process.attach_shared(&shared_mem, addr as u64).unwrap();
+            }
+            _ => panic!("process wasn't stopped by SIGTRAP"),
+        };
+
+        process.cont().unwrap();
+        let status = nix::sys::wait::wait().unwrap();
+        if let WaitStatus::Exited(_, 42) = status {
             return;
         }
         panic!("wrong exit");

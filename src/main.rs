@@ -2,8 +2,10 @@ use nix::sys::wait::wait;
 use nix::sys::{signal::Signal::SIGSEGV, wait::WaitStatus};
 
 use sys::Priv;
-use utils::{priv_flags, MinixProcessTable};
+use utils::{priv_flags, MinixProcessTable, SharedImage, SharedMemory};
 use utils::{Instruction, MinixProcess};
+
+const HZ: u32 = 16 * 1024 * 1024; // arbitrary 16 MHz
 
 #[macro_use]
 extern crate static_assertions;
@@ -20,6 +22,11 @@ fn main() {
     // let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
     // let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
     // let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
+
+    // prepare the usermapped memory
+    let usermapped_mem = SharedMemory::new("minix_usermapped", 4096).unwrap();
+    let usermapped = SharedImage::default();
+    usermapped_mem.write(0, &usermapped).unwrap();
 
     let mut rs = MinixProcess::spawn("rs").unwrap();
     rs.s_flags = priv_flags::ROOT_SYS_PROC;
