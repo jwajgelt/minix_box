@@ -17,12 +17,6 @@ mod utils;
 fn main() {
     let mut process_table = MinixProcessTable::new();
 
-    // TODO: move this to test files
-    // let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
-    // let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
-    // let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
-    // let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
-
     // prepare the usermapped memory
     let usermapped_mem = SharedMemory::new("minix_usermapped", 4096).unwrap();
     let usermapped = SharedImage::default();
@@ -44,6 +38,10 @@ fn main() {
     //     utils::endpoint::PM_PROC_NR,
     // );
 
+    main_loop(&mut process_table).unwrap();
+}
+
+fn main_loop(process_table: &mut MinixProcessTable) -> Result<(), nix::Error> {
     loop {
         match wait().unwrap() {
             WaitStatus::Stopped(pid, SIGSEGV) => {
@@ -57,18 +55,16 @@ fn main() {
                     .read_instruction()
                     .unwrap();
 
-                // let name = process_table[caller_endpoint].name.as_str();
-
                 match instruction {
                     Instruction::Int(0x20) => {
                         // kernel call
-                        // println!("{} requests kernel call", name);
-                        sys::do_kernel_call(caller_endpoint, &mut process_table).unwrap();
+                        // TODO: optional logging
+                        sys::do_kernel_call(caller_endpoint, process_table).unwrap();
                     }
                     Instruction::Int(0x21) => {
                         // ipc call
-                        // println!("{}, endpoint {} requests ipc", name, caller_endpoint);
-                        ipc::do_ipc(caller_endpoint, &mut process_table).unwrap();
+                        // TODO: optional logging
+                        ipc::do_ipc(caller_endpoint, process_table).unwrap();
                     }
                     _ => {
                         // other
@@ -94,5 +90,32 @@ fn main() {
             WaitStatus::Continued(_) => unreachable!("WCONTINUED was not set, so this won't happen"),
             WaitStatus::StillAlive => unreachable!("WNOHANG was not set, so this won't happen"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "not yet implemented: Handle invalid endpoints. Endpoint: 0")]
+    fn send_receive_test() {
+        let mut process_table = MinixProcessTable::new();
+        
+        let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
+        let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
+
+        main_loop(&mut process_table).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "not yet implemented: Handle invalid endpoints. Endpoint: 0")]
+    fn sendrec_test() {
+        let mut process_table = MinixProcessTable::new();
+
+        let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
+        let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
+
+        main_loop(&mut process_table).unwrap();
     }
 }
