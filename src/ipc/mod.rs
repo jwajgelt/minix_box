@@ -1,4 +1,4 @@
-use crate::utils::minix_errno;
+use crate::utils::{MinixProcess, minix_errno::{self, EDEADSRCDST, EINVAL, ENOTREADY, OK}};
 use crate::utils::{endpoint, Endpoint, Message, NOTIFY_MESSAGE};
 use crate::utils::{MinixProcessTable, ProcessState};
 
@@ -33,7 +33,9 @@ pub fn do_ipc(
     // ANY endpoint is allowed only for the RECEIVE call
     if dest_src == endpoint::ANY && call_nr != ipcconst::RECEIVE {
         // return EINVAL in process
-        todo!();
+        set_return_value(&process_table[caller_endpoint], EINVAL)?;
+        process_table[caller_endpoint].cont()?;
+        return Ok(())
     }
 
     // check the source / destination is valid
@@ -47,7 +49,6 @@ pub fn do_ipc(
             dest_src,
             call_nr
         );
-        // return Ok(());
     }
 
     // TODO: if call is SEND, SENDNB, SENDREC or NOTIFY, verify
@@ -79,22 +80,27 @@ pub fn do_ipc(
         ipcconst::MINIX_KERNINFO => {
             println!("Endpoint {} requests MINIX_KERNINFO.", caller_endpoint)
         }
-        _ => todo!(), // invalid call number is invalid
+        _ => println!("Endpoint {} requests ipc_call {}", caller_endpoint, call_nr),
     }
 
     // the ecx register contains the type of ipc call
-    match call_nr {
-        ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table)?,
+    let result = match call_nr {
+        ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table, false)?,
         ipcconst::RECEIVE => do_receive(caller_endpoint, dest_src, process_table)?,
         ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table)?,
         ipcconst::NOTIFY => do_notify(caller_endpoint, dest_src, process_table)?,
+        ipcconst::SENDA => { panic!("async send not implemented") }
+        ipcconst::SENDNB => do_send(caller_endpoint, dest_src, process_table, true)?,
         ipcconst::MINIX_KERNINFO => {
+            // check if process has the `minix_kerninfo` struct already mapped
+            // and if not, map it to the process's memory
             if let None = process_table[caller_endpoint].minix_kerninfo_addr {
                 let usermapped_mem = &process_table.usermapped_mem;
                 process_table[caller_endpoint].attach_shared(usermapped_mem, crate::utils::SHARED_BASE_ADDR as u64)
                 .unwrap();
                 process_table[caller_endpoint].minix_kerninfo_addr = Some(crate::utils::SHARED_BASE_ADDR);
             }
+
             // ebx is the return struct ptr
             regs.rbx = process_table[caller_endpoint]
                 .minix_kerninfo_addr
@@ -105,16 +111,21 @@ pub fn do_ipc(
                 minix_errno::OK
             } as u64;
             process_table[caller_endpoint].set_regs(regs)?;
+
+            // run the process
+            process_table[caller_endpoint].cont()?;
+            return Ok(())
         }
         _ => {
             // invalid call number - return EBADCALL in process
-            todo!()
+            todo!("invalid ipc call number")
         }
     };
 
     // if the caller doesn't have any ipc state set,
-    // resume it
+    // set the ipc call return value and resume it
     if let ProcessState::Running = process_table[caller_endpoint].state {
+        set_return_value(&process_table[caller_endpoint], result)?;
         process_table[caller_endpoint].cont()?;
     };
 
@@ -125,14 +136,15 @@ fn do_send(
     caller: Endpoint,
     dst: Endpoint,
     process_table: &mut MinixProcessTable,
-) -> Result<(), nix::Error> {
+    non_blocking: bool,
+) -> Result<i32, nix::Error> {
     let addr = process_table[caller].get_regs()?.rbx;
     let mut message = process_table[caller].read_message(addr)?; // TODO: return EFAULT in child if read is not successful
 
     // check if `dst` is blocked waiting for this message
     if will_receive(caller, dst, process_table) {
         // TODO: here, Minix checks if message comes from the kernel
-        // and does so magic if so - might want to think this through
+        // and does some magic if so - might want to think this through
 
         // set the source of the message
         message.source = caller;
@@ -159,6 +171,11 @@ fn do_send(
             _ => unreachable!("Receiver has to be in either RECEIVE or SENDRECEIVE"),
         }
     } else {
+        // return ENOTREADY
+        if non_blocking {
+            return Ok(ENOTREADY);
+        }
+
         // TODO: Minix checks for a possible deadlock,
         // and returns ELOCKED in sender if detected
 
@@ -172,7 +189,7 @@ fn do_send(
         process_table[dst].queue.insert(caller, message);
     }
 
-    Ok(())
+    Ok(OK)
 }
 
 // TODO: this is, so far, very naive - we don't handle NOTIFYs, async sends,
@@ -181,13 +198,13 @@ fn do_receive(
     caller: Endpoint,
     src: Endpoint,
     process_table: &mut MinixProcessTable,
-) -> Result<(), nix::Error> {
+) -> Result<i32, nix::Error> {
     // caller is in SENDREC, and destination wasn't ready:
     // set the state as `SENDRECEIVING` from `src` and return
     if let ProcessState::Sending(dst) = process_table[caller].state {
         assert!(src == dst);
         process_table[caller].state = ProcessState::SendReceiving(src);
-        return Ok(());
+        return Ok(OK);
     };
 
     // check if there are pending notifications, except for SENDREC
@@ -201,7 +218,7 @@ fn do_receive(
                     let msg = build_notify_message(src);
                     let addr = receiver.get_regs()?.rbx;
                     receiver.write_message(addr, msg)?;
-                    return Ok(());
+                    return Ok(OK);
                 }
             }
         }
@@ -239,7 +256,7 @@ fn do_receive(
 
         // TODO: set the IPC status here
         // status is stored in the ebx register
-        return Ok(());
+        return Ok(OK);
     }
 
     // TODO: check if `receive` is non-blocking
@@ -249,15 +266,15 @@ fn do_receive(
 
     // set the caller as `RECEIVING` from `src`
     process_table[caller].state = ProcessState::Receiving(src);
-    Ok(())
+    Ok(OK)
 }
 
 fn do_sendrec(
     caller: Endpoint,
     dst: Endpoint,
     process_table: &mut MinixProcessTable,
-) -> Result<(), nix::Error> {
-    do_send(caller, dst, process_table)?;
+) -> Result<i32, nix::Error> {
+    do_send(caller, dst, process_table, false)?;
     // TODO: set a flag stopping notifies in receive
     do_receive(caller, dst, process_table)
 }
@@ -266,16 +283,16 @@ fn do_notify(
     caller: Endpoint,
     dst: Endpoint,
     process_table: &mut MinixProcessTable,
-) -> Result<(), nix::Error> {
+) -> Result<i32, nix::Error> {
     if process_table.get(dst).is_none() {
         // TODO: return EDEADSRCDST from ipc call
-        return Ok(());
+        return Ok(EDEADSRCDST);
     }
 
     // sadly no `or` in `if let` expressions yet
     if !will_receive(caller, dst, process_table) {
         process_table[dst].notify_pending.push(caller);
-        return Ok(());
+        return Ok(OK);
     }
 
     // TODO: check the 'sendrecing' flag (`MF_REPLY_PEND`)
@@ -299,7 +316,15 @@ fn do_notify(
         _ => unreachable!("Notify receiver has to be in either RECEIVE"),
     };
 
-    Ok(())
+    Ok(OK)
+}
+
+// sets the rax register to be the return value
+// of the ipc call
+fn set_return_value(process: &MinixProcess, value: i32) -> Result<(), nix::Error> {
+    let mut regs = process.get_regs()?;
+    regs.rax = value as u64;
+    process.set_regs(regs)
 }
 
 // assumes `src` and `dst` are valid endpoints
