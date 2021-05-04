@@ -35,49 +35,49 @@ mod r#priv {
 
     #[repr(C)]
     pub struct Priv {
-        s_proc_nr: i32,    /* number of associated process */
-        s_id: i16,         /* index of this system structure */
-        s_flags: i16,      /* PREEMTIBLE, BILLABLE, etc. */
-        s_init_flags: i32, /* initialization flags given to the process */
+        pub s_proc_nr: i32,    /* number of associated process */
+        pub s_id: i16,         /* index of this system structure */
+        pub s_flags: i16,      /* PREEMTIBLE, BILLABLE, etc. */
+        pub s_init_flags: i32, /* initialization flags given to the process */
 
         // Asynchronous sends
-        s_asyntab: VirBytes,      /* addr. of table in process' address space */
-        s_asynsize: u32,          /* number of elements in table. 0 when not in use */
-        s_asynendpoint: Endpoint, /* the endpoint the asyn table belongs to */
+        pub s_asyntab: VirBytes,      /* addr. of table in process's address space */
+        pub s_asynsize: u32,          /* number of elements in table. 0 when not in use */
+        pub s_asynendpoint: Endpoint, /* the endpoint the asyn table belongs to */
 
-        s_trap_mask: i16, /* allowed system call traps */
-        s_ipc_to: SysMap, /* allowed destination processes */
+        pub s_trap_mask: i16, /* allowed system call traps */
+        pub s_ipc_to: SysMap, /* allowed destination processes */
 
         // allowed kernel calls
-        s_k_call_mask: [BitChunk; SYS_CALL_MASK_SIZE],
+        pub s_k_call_mask: [BitChunk; SYS_CALL_MASK_SIZE],
 
-        s_sig_mgr: Endpoint,      /* signal manager for system signals */
-        s_bak_sig_mgr: Endpoint,  /* backup signal manager for system signals */
-        s_notify_pending: SysMap, /* bit map with pending notifications */
-        s_asyn_pending: SysMap,   /* bit map with pending asyn messages */
-        s_int_pending: u32,       /* pending hardware interrupts */
-        s_sig_pending: SigSet,    /* pending signals */
-        s_ipcf: u32,              /* ipc filter (NULL when no filter is set) */
-
+        pub s_sig_mgr: Endpoint,      /* signal manager for system signals */
+        pub s_bak_sig_mgr: Endpoint,  /* backup signal manager for system signals */
+        pub s_notify_pending: SysMap, /* bit map with pending notifications */
+        pub s_asyn_pending: SysMap,   /* bit map with pending asyn messages */
+        pub s_int_pending: u32,       /* pending hardware interrupts */
+        pub s_sig_pending: SigSet,    /* pending signals */
         // type is pointer to IpcFilter
-        s_alarm_timer: MinixTimer, /* synchronous alarm timer */
-        s_stack_guard: u32,        /* stack guard word for kernel tasks */
+        pub s_ipcf: u32,              /* ipc filter (NULL when no filter is set) */
 
-        s_diag_sig: u8, /* send a SIGKMESS when diagnostics arrive? */
+        pub s_alarm_timer: MinixTimer, /* synchronous alarm timer */
+        pub s_stack_guard: u32,        /* stack guard word for kernel tasks */
 
-        s_nr_io_range: i32, /* allowed I/O ports */
-        s_io_tab: [IoRange; NR_IO_RANGE],
+        pub s_diag_sig: u8, /* send a SIGKMESS when diagnostics arrive? */
 
-        s_nr_mem_range: i32, /* allowed memory ranges */
-        s_mem_tab: [MinixMemRange; NR_MEM_RANGE],
+        pub s_nr_io_range: i32, /* allowed I/O ports */
+        pub s_io_tab: [IoRange; NR_IO_RANGE],
 
-        s_nr_irq: i32, /* allowed IRQ lines */
-        s_irq_tab: [i32; NR_IRQ],
-        s_grant_table: VirBytes,    /* grant table address of process, or 0 */
-        s_grant_entries: i32,       /* no. of entries, or 0 */
-        s_grant_endpoint: Endpoint, /* the endpoint the grant table belongs to */
-        s_state_table: VirBytes,    /* state table address of process, or 0 */
-        s_state_entries: i32,       /* no. of entries, or 0 */
+        pub s_nr_mem_range: i32, /* allowed memory ranges */
+        pub s_mem_tab: [MinixMemRange; NR_MEM_RANGE],
+
+        pub s_nr_irq: i32, /* allowed IRQ lines */
+        pub s_irq_tab: [i32; NR_IRQ],
+        pub s_grant_table: VirBytes,    /* grant table address of process, or 0 */
+        pub s_grant_entries: i32,       /* no. of entries, or 0 */
+        pub s_grant_endpoint: Endpoint, /* the endpoint the grant table belongs to */
+        pub s_state_table: VirBytes,    /* state table address of process, or 0 */
+        pub s_state_entries: i32,       /* no. of entries, or 0 */
     }
 
     impl Default for Priv {
@@ -94,7 +94,7 @@ mod r#priv {
 }
 
 #[repr(C)]
-struct SysMap {
+pub struct SysMap {
     chunk: [BitChunk; bitmap_chunks(NR_SYS_PROCS)],
 }
 
@@ -105,7 +105,7 @@ const fn bitmap_chunks(nr_bits: usize) -> usize {
 const SYS_CALL_MASK_SIZE: usize = bitmap_chunks(NR_SYS_CALLS);
 
 #[repr(C)]
-struct BitChunk(u32);
+pub struct BitChunk(u32);
 
 #[repr(C)]
 struct IpcFilter {
@@ -124,7 +124,7 @@ struct IpcFilterElement {
 }
 
 #[repr(C)]
-struct MinixTimer {
+pub struct MinixTimer {
     tmr_next: u32,     // next in a timer chain, type is MinixTimer*
     tmr_exp_time: u32, // expiration time (type is unsigned int or long)
     tmr_func: u32,     // function to call when expired
@@ -132,13 +132,13 @@ struct MinixTimer {
 }
 
 #[repr(C)]
-struct IoRange {
+pub struct IoRange {
     ior_base: u32,
     ior_limit: u32,
 }
 
 #[repr(C)]
-struct MinixMemRange {
+pub struct MinixMemRange {
     mr_base: u32,
     mr_limit: u32,
 }

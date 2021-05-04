@@ -4,14 +4,14 @@ use super::Endpoint;
 
 /// this struct represents a Minix ipc message
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Message {
     pub source: Endpoint,        // the endpoint sending the message
     pub m_type: u32,             // type of the message
     pub payload: MessagePayload, // the payload of the message
 }
 
-pub type MessagePayload = [u64; 7];
+pub type MessagePayload = [u32; 14];
 
 /// the size of the Message struct, in bytes,
 /// needs to be equal to this number

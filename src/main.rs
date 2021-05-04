@@ -1,7 +1,6 @@
 use nix::sys::wait::wait;
 use nix::sys::{signal::Signal::SIGSEGV, wait::WaitStatus};
 
-use sys::Priv;
 use utils::{priv_flags, MinixProcessTable, SharedImage, SharedMemory};
 use utils::{Instruction, MinixProcess};
 
@@ -22,9 +21,9 @@ fn main() {
     let usermapped = SharedImage::default();
     usermapped_mem.write(0, &usermapped).unwrap();
 
+    // setup the boot processes
     let mut rs = MinixProcess::spawn("rs").unwrap();
     rs.s_flags = priv_flags::ROOT_SYS_PROC;
-    rs.privileges = Some(Priv::default());
 
     let _ = process_table.insert(rs, utils::endpoint::RS_PROC_NR);
     let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 12);
@@ -101,7 +100,7 @@ mod tests {
     #[should_panic(expected = "not yet implemented: Handle invalid endpoints. Endpoint: 0")]
     fn send_receive_test() {
         let mut process_table = MinixProcessTable::new();
-        
+
         let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
         let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
 

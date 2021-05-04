@@ -8,7 +8,7 @@ use nix::{
     unistd::ftruncate,
 };
 
-/// an object representing a POSIX shared memory, 
+/// an object representing a POSIX shared memory,
 /// inherited (as an open file descriptor `fd`)
 /// by all child processes
 pub struct SharedMemory {

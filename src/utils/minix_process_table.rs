@@ -5,8 +5,8 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use super::{Endpoint, SharedImage, SharedMemory};
 use super::MinixProcess;
+use super::{Endpoint, SharedImage, SharedMemory};
 
 const MAX_PROCESSES: usize = 256;
 
@@ -19,7 +19,7 @@ pub struct MinixProcessTable {
     /// the values mapped for processes shared with the kernel
     pub usermapped: SharedImage,
     /// shared memory backing the mapping of these values
-    pub usermapped_mem:   SharedMemory
+    pub usermapped_mem: SharedMemory,
 }
 
 impl MinixProcessTable {
@@ -28,7 +28,7 @@ impl MinixProcessTable {
             table: array_init(|_| None),
             pid_map: BTreeMap::new(),
             usermapped: SharedImage::default(),
-            usermapped_mem: SharedMemory::new("minix_usermapped", 4096).unwrap()
+            usermapped_mem: SharedMemory::new("minix_usermapped", 4096).unwrap(),
         }
     }
 

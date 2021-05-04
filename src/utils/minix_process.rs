@@ -32,10 +32,12 @@ pub struct MinixProcess {
     pid: Pid,
     pub state: ProcessState,
     pub queue: MessageQueue,
+    pub reply_pending: bool,
     pub name: String,
     pub s_flags: u16,
-    pub privileges: Option<Priv>,
+    pub privileges: Priv,
     pub notify_pending: Vec<Endpoint>,
+    pub async_pending: Vec<Endpoint>,
     pub minix_kerninfo_addr: Option<u32>,
 }
 
@@ -59,10 +61,12 @@ impl MinixProcess {
                     pid: child,
                     state: ProcessState::Running,
                     queue: MessageQueue::new(),
+                    reply_pending: false,
                     name: path.to_string(),
                     s_flags: 0u16,
-                    privileges: None,
+                    privileges: Priv::default(),
                     notify_pending: vec![],
+                    async_pending: vec![],
                     minix_kerninfo_addr: None,
                 };
 
@@ -122,7 +126,7 @@ impl MinixProcess {
         Ok(ptrace::read(self.pid, addr)? as u64)
     }
 
-    /// reads one word (8 bytes) from an address
+    /// reads `len` bytes from an address
     /// in the traced process's memory
     pub fn read_buf_u8(&self, addr: u64, len: usize) -> Result<Vec<u8>, nix::Error> {
         let len64 = (len + 7) / 8; // ceil(len/8)

@@ -1,5 +1,11 @@
-use crate::utils::{MinixProcess, minix_errno::{self, EDEADSRCDST, EINVAL, ENOTREADY, OK}};
+#[allow(dead_code)]
+mod asyn;
+
 use crate::utils::{endpoint, Endpoint, Message, NOTIFY_MESSAGE};
+use crate::utils::{
+    minix_errno::{self, EDEADSRCDST, EINVAL, ENOTREADY, OK},
+    MinixProcess,
+};
 use crate::utils::{MinixProcessTable, ProcessState};
 
 #[allow(dead_code)]
@@ -27,29 +33,7 @@ pub fn do_ipc(
     regs.rip += 2;
     process.set_regs(regs).unwrap();
 
-    let dest_src = regs.rax as Endpoint;
     let call_nr = regs.rcx;
-
-    // ANY endpoint is allowed only for the RECEIVE call
-    if dest_src == endpoint::ANY && call_nr != ipcconst::RECEIVE {
-        // return EINVAL in process
-        set_return_value(&process_table[caller_endpoint], EINVAL)?;
-        process_table[caller_endpoint].cont()?;
-        return Ok(())
-    }
-
-    // check the source / destination is valid
-    if call_nr != ipcconst::MINIX_KERNINFO
-        && dest_src != endpoint::ANY
-        && process_table.get(dest_src).is_none()
-    {
-        // return EDEADSRCDST in process
-        todo!(
-            "Handle invalid endpoints. Endpoint: {}, call: {}",
-            dest_src,
-            call_nr
-        );
-    }
 
     // TODO: if call is SEND, SENDNB, SENDREC or NOTIFY, verify
     // that the caller is allowed to send to the given destination
@@ -59,52 +43,31 @@ pub fn do_ipc(
     // Calls to the kernel may only be SENDREC because tasks always reply.
     // If illegal, return ETRAPDENIED in process.
 
-    match call_nr {
-        ipcconst::SEND => println!("Endpoint {} requests SEND.", caller_endpoint),
-        ipcconst::RECEIVE => {
-            let dest_name = if dest_src == endpoint::ANY {
-                "ANY"
-            } else {
-                &process_table[dest_src].name
-            };
-            println!(
-                "Endpoint {} requests RECEIVE from {}.",
-                caller_endpoint, dest_name
-            )
-        }
-        ipcconst::SENDREC => println!("Endpoint {} requests SENDREC.", caller_endpoint),
-        ipcconst::NOTIFY => println!(
-            "Endpoint {} requests NOTIFY to {}.",
-            caller_endpoint, dest_src
-        ),
-        ipcconst::MINIX_KERNINFO => {
-            println!("Endpoint {} requests MINIX_KERNINFO.", caller_endpoint)
-        }
-        _ => println!("Endpoint {} requests ipc_call {}", caller_endpoint, call_nr),
-    }
-
     // the ecx register contains the type of ipc call
     let result = match call_nr {
-        ipcconst::SEND => do_send(caller_endpoint, dest_src, process_table, false)?,
-        ipcconst::RECEIVE => do_receive(caller_endpoint, dest_src, process_table)?,
-        ipcconst::SENDREC => do_sendrec(caller_endpoint, dest_src, process_table)?,
-        ipcconst::NOTIFY => do_notify(caller_endpoint, dest_src, process_table)?,
-        ipcconst::SENDA => { panic!("async send not implemented") }
-        ipcconst::SENDNB => do_send(caller_endpoint, dest_src, process_table, true)?,
+        ipcconst::SEND..=ipcconst::SENDNB => do_sync_ipc(
+            caller_endpoint,
+            call_nr,
+            regs.rax as Endpoint,
+            process_table,
+        )?,
+        ipcconst::SENDA => {
+            asyn::do_senda(caller_endpoint, regs.rbx, regs.rax, process_table)?
+        }
         ipcconst::MINIX_KERNINFO => {
             // check if process has the `minix_kerninfo` struct already mapped
             // and if not, map it to the process's memory
-            if let None = process_table[caller_endpoint].minix_kerninfo_addr {
+            if process_table[caller_endpoint].minix_kerninfo_addr.is_none() {
                 let usermapped_mem = &process_table.usermapped_mem;
-                process_table[caller_endpoint].attach_shared(usermapped_mem, crate::utils::SHARED_BASE_ADDR as u64)
-                .unwrap();
-                process_table[caller_endpoint].minix_kerninfo_addr = Some(crate::utils::SHARED_BASE_ADDR);
+                process_table[caller_endpoint]
+                    .attach_shared(usermapped_mem, crate::utils::SHARED_BASE_ADDR as u64)
+                    .unwrap();
+                process_table[caller_endpoint].minix_kerninfo_addr =
+                    Some(crate::utils::SHARED_BASE_ADDR);
             }
 
             // ebx is the return struct ptr
-            regs.rbx = process_table[caller_endpoint]
-                .minix_kerninfo_addr
-                .unwrap() as u64;
+            regs.rbx = process_table[caller_endpoint].minix_kerninfo_addr.unwrap() as u64;
             regs.rax = if regs.rbx == 0 {
                 minix_errno::EDEADSRCDST
             } else {
@@ -114,7 +77,7 @@ pub fn do_ipc(
 
             // run the process
             process_table[caller_endpoint].cont()?;
-            return Ok(())
+            return Ok(());
         }
         _ => {
             // invalid call number - return EBADCALL in process
@@ -130,6 +93,43 @@ pub fn do_ipc(
     };
 
     Ok(())
+}
+
+fn do_sync_ipc(
+    caller: Endpoint,
+    call_nr: u64,
+    dest_src: Endpoint,
+    process_table: &mut MinixProcessTable,
+) -> Result<i32, nix::Error> {
+    // ANY endpoint is allowed only for the RECEIVE call
+    if dest_src == endpoint::ANY && call_nr != ipcconst::RECEIVE {
+        // return EINVAL in process
+        return Ok(EINVAL);
+    }
+
+    // check the source / destination is valid
+    if dest_src != endpoint::ANY && process_table.get(dest_src).is_none() {
+        // return EDEADSRCDST in process
+        todo!(
+            "Handle invalid endpoints. Endpoint: {}, call: {}",
+            dest_src,
+            call_nr
+        );
+    }
+
+    let result = match call_nr {
+        ipcconst::SEND => do_send(caller, dest_src, process_table, false)?,
+        ipcconst::RECEIVE => {
+            process_table[caller].reply_pending = false;
+            do_receive(caller, dest_src, process_table)?
+        }
+        ipcconst::SENDREC => do_sendrec(caller, dest_src, process_table)?,
+        ipcconst::NOTIFY => do_notify(caller, dest_src, process_table)?,
+        ipcconst::SENDNB => do_send(caller, dest_src, process_table, true)?,
+        _ => unreachable!(),
+    };
+
+    Ok(result)
 }
 
 fn do_send(
@@ -208,18 +208,15 @@ fn do_receive(
     };
 
     // check if there are pending notifications, except for SENDREC
-    match process_table[caller].state {
-        ProcessState::SendReceiving(_) => {}
-        _ => {
-            for (index, &src) in process_table[caller].notify_pending.iter().enumerate() {
-                if can_receive(caller, src) {
-                    let receiver = &mut process_table[caller];
-                    receiver.notify_pending.remove(index);
-                    let msg = build_notify_message(src);
-                    let addr = receiver.get_regs()?.rbx;
-                    receiver.write_message(addr, msg)?;
-                    return Ok(OK);
-                }
+    if !process_table[caller].reply_pending {
+        for (index, &src) in process_table[caller].notify_pending.iter().enumerate() {
+            if can_receive(caller, src) {
+                let receiver = &mut process_table[caller];
+                receiver.notify_pending.remove(index);
+                let msg = build_notify_message(src);
+                let addr = receiver.get_regs()?.rbx;
+                receiver.write_message(addr, msg)?;
+                return Ok(OK);
             }
         }
     }
@@ -259,8 +256,10 @@ fn do_receive(
         return Ok(OK);
     }
 
-    // TODO: check if `receive` is non-blocking
-    // if so, return ENOTREADY instead of blocking
+    // Minix checks if `receive` is non-blocking
+    // and if so, returns ENOTREADY instead of blocking.
+    // However, `mini_receive` is only called with empty
+    // flags, so this never actually happens.
 
     // TODO: before block, check for deadlocks
 
@@ -274,8 +273,11 @@ fn do_sendrec(
     dst: Endpoint,
     process_table: &mut MinixProcessTable,
 ) -> Result<i32, nix::Error> {
-    do_send(caller, dst, process_table, false)?;
-    // TODO: set a flag stopping notifies in receive
+    process_table[caller].reply_pending = true;
+    let send_result = do_send(caller, dst, process_table, false)?;
+    if send_result != OK {
+        return Ok(send_result);
+    }
     do_receive(caller, dst, process_table)
 }
 
@@ -289,7 +291,6 @@ fn do_notify(
         return Ok(EDEADSRCDST);
     }
 
-    // sadly no `or` in `if let` expressions yet
     if !will_receive(caller, dst, process_table) {
         process_table[dst].notify_pending.push(caller);
         return Ok(OK);
@@ -349,6 +350,6 @@ fn build_notify_message(src: Endpoint) -> Message {
     Message {
         m_type: NOTIFY_MESSAGE,
         source: src,
-        payload: [0; 7],
+        payload: [0; 14],
     }
 }
