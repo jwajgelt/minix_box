@@ -41,8 +41,8 @@ mod r#priv {
         pub s_init_flags: i32, /* initialization flags given to the process */
 
         // Asynchronous sends
-        pub s_asyntab: VirBytes,      /* addr. of table in process's address space */
-        pub s_asynsize: u32,          /* number of elements in table. 0 when not in use */
+        pub s_asyntab: VirBytes, /* addr. of table in process's address space */
+        pub s_asynsize: u32,     /* number of elements in table. 0 when not in use */
         pub s_asynendpoint: Endpoint, /* the endpoint the asyn table belongs to */
 
         pub s_trap_mask: i16, /* allowed system call traps */
@@ -58,7 +58,7 @@ mod r#priv {
         pub s_int_pending: u32,       /* pending hardware interrupts */
         pub s_sig_pending: SigSet,    /* pending signals */
         // type is pointer to IpcFilter
-        pub s_ipcf: u32,              /* ipc filter (NULL when no filter is set) */
+        pub s_ipcf: u32, /* ipc filter (NULL when no filter is set) */
 
         pub s_alarm_timer: MinixTimer, /* synchronous alarm timer */
         pub s_stack_guard: u32,        /* stack guard word for kernel tasks */
@@ -73,11 +73,11 @@ mod r#priv {
 
         pub s_nr_irq: i32, /* allowed IRQ lines */
         pub s_irq_tab: [i32; NR_IRQ],
-        pub s_grant_table: VirBytes,    /* grant table address of process, or 0 */
-        pub s_grant_entries: i32,       /* no. of entries, or 0 */
+        pub s_grant_table: VirBytes, /* grant table address of process, or 0 */
+        pub s_grant_entries: i32,    /* no. of entries, or 0 */
         pub s_grant_endpoint: Endpoint, /* the endpoint the grant table belongs to */
-        pub s_state_table: VirBytes,    /* state table address of process, or 0 */
-        pub s_state_entries: i32,       /* no. of entries, or 0 */
+        pub s_state_table: VirBytes, /* state table address of process, or 0 */
+        pub s_state_entries: i32,    /* no. of entries, or 0 */
     }
 
     impl Default for Priv {

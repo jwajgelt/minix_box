@@ -70,7 +70,7 @@ fn get_whoami(caller_endpoint: Endpoint, caller: &mut MinixProcess) -> Result<i3
     // pointed to by the rax register
     // (+8, since we skip the source and type fields, and only write the payload)
     let regs = caller.get_regs()?;
-    let data: [u32; 14] = response.into_payload().clone();
+    let data: [u32; 14] = response.into_payload();
     let data_u64: [u64; 7] = unsafe { std::mem::transmute(data) };
     caller.write_buf(regs.rax + 8, &data_u64)?;
 

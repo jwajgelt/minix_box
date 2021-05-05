@@ -8,6 +8,8 @@ use crate::utils::{
 };
 use crate::utils::{MinixProcessTable, ProcessState};
 
+use self::asyn::has_pending_asend;
+
 #[allow(dead_code)]
 mod ipcconst {
     // ipc call numbers, defined in minix/ipcconst.h
@@ -51,9 +53,7 @@ pub fn do_ipc(
             regs.rax as Endpoint,
             process_table,
         )?,
-        ipcconst::SENDA => {
-            asyn::do_senda(caller_endpoint, regs.rbx, regs.rax, process_table)?
-        }
+        ipcconst::SENDA => asyn::do_senda(caller_endpoint, regs.rbx, regs.rax, process_table)?,
         ipcconst::MINIX_KERNINFO => {
             // check if process has the `minix_kerninfo` struct already mapped
             // and if not, map it to the process's memory
@@ -216,12 +216,25 @@ fn do_receive(
                 let msg = build_notify_message(src);
                 let addr = receiver.get_regs()?.rbx;
                 receiver.write_message(addr, msg)?;
+                // TODO: set ipc status
                 return Ok(OK);
             }
         }
     }
 
-    // TODO: check for pending asynchronous messages
+    // check for pending asynchronous messages
+    if has_pending_asend(caller, src, process_table)? {
+        let r = if src != endpoint::ANY {
+            asyn::try_one(src, caller, process_table)?
+        } else {
+            asyn::try_async(caller, process_table)?
+        };
+
+        if r == OK {
+            // TODO: set ipc status
+            return Ok(OK);
+        }
+    }
 
     // look on the queue for an appropriate message
     if let Some((sender, mut message)) = process_table[caller]
