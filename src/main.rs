@@ -22,12 +22,12 @@ fn main() {
     usermapped_mem.write(0, &usermapped).unwrap();
 
     // setup the boot processes
-    let mut rs = MinixProcess::spawn("rs").unwrap();
+    let mut rs = MinixProcess::spawn("server_bin/rs").unwrap();
     rs.s_flags = priv_flags::ROOT_SYS_PROC;
 
     let _ = process_table.insert(rs, utils::endpoint::RS_PROC_NR);
-    let _ = process_table.insert(MinixProcess::spawn("is").unwrap(), 12);
-    let _ = process_table.insert(MinixProcess::spawn("ipc").unwrap(), 13);
+    let _ = process_table.insert(MinixProcess::spawn("server_bin/is").unwrap(), 12);   // arbitrary endpoint for testing
+    let _ = process_table.insert(MinixProcess::spawn("server_bin/ipc").unwrap(), 13);  // arbitrary endpoint for testing
     // let _ = process_table.insert(
     //     MinixProcess::spawn("vfs").unwrap(),
     //     utils::endpoint::VFS_PROC_NR,
@@ -101,8 +101,8 @@ mod tests {
     fn send_receive_test() {
         let mut process_table = MinixProcessTable::new();
 
-        let _ = process_table.insert(MinixProcess::spawn("sender_main").unwrap(), 41);
-        let _ = process_table.insert(MinixProcess::spawn("receiver").unwrap(), 42);
+        let _ = process_table.insert(MinixProcess::spawn("test_bin/sender_main").unwrap(), 41);
+        let _ = process_table.insert(MinixProcess::spawn("test_bin/receiver").unwrap(), 42);
 
         main_loop(&mut process_table).unwrap();
     }
@@ -112,8 +112,8 @@ mod tests {
     fn sendrec_test() {
         let mut process_table = MinixProcessTable::new();
 
-        let _ = process_table.insert(MinixProcess::spawn("sendrec_39").unwrap(), 39);
-        let _ = process_table.insert(MinixProcess::spawn("sendrec_40").unwrap(), 40);
+        let _ = process_table.insert(MinixProcess::spawn("test_bin/sendrec_39").unwrap(), 39);
+        let _ = process_table.insert(MinixProcess::spawn("test_bin/sendrec_40").unwrap(), 40);
 
         main_loop(&mut process_table).unwrap();
     }
