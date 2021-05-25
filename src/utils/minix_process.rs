@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     fn do_syscall_test() {
-        let path = format!("{}/syscall", env!("CARGO_MANIFEST_DIR"));
+        let path = format!("{}/test_bin/syscall", env!("CARGO_MANIFEST_DIR"));
         let process = MinixProcess::spawn(&path).unwrap();
 
         match nix::sys::wait::wait().unwrap() {
@@ -427,7 +427,7 @@ mod tests {
         let shared_mem = SharedMemory::new("test", std::mem::size_of::<i32>()).unwrap();
         shared_mem.write(0, &42i32).unwrap();
 
-        let path = format!("{}/attach", env!("CARGO_MANIFEST_DIR"));
+        let path = format!("{}/test_bin/attach", env!("CARGO_MANIFEST_DIR"));
         let process = MinixProcess::spawn(&path).unwrap();
 
         let addr = 0xf1002000u32;

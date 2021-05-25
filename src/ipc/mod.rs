@@ -192,8 +192,6 @@ fn do_send(
     Ok(OK)
 }
 
-// TODO: this is, so far, very naive - we don't handle NOTIFYs, async sends,
-// we don't check flags for non-blocking, we don't set the return value
 fn do_receive(
     caller: Endpoint,
     src: Endpoint,
