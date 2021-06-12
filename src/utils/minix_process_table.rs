@@ -49,12 +49,13 @@ impl MinixProcessTable {
         self.table[idx].as_ref()
     }
 
-    // /// returns a mutable reference to the MinixProcess struct
-    // /// with the given (Linux) pid
-    // pub fn get_mut_by_pid(&mut self, pid: Pid) -> Option<&mut MinixProcess> {
-    //     let idx = self.pid_to_endpoint(pid)? as usize;
-    //     self.table[idx].as_mut()
-    // }
+    /// returns a mutable reference to the MinixProcess struct
+    /// with the given (Linux) pid
+    #[allow(dead_code)]
+    pub fn get_mut_by_pid(&mut self, pid: Pid) -> Option<&mut MinixProcess> {
+        let idx = self.pid_to_endpoint(pid)? as usize;
+        self.table[idx].as_mut()
+    }
 
     pub fn pid_to_endpoint(&self, pid: Pid) -> Option<Endpoint> {
         self.pid_map.get(&pid).map(|v| *v as Endpoint)
