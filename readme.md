@@ -4,6 +4,8 @@ Minix Box is a proof-of-concept Minix 3 compatibility layer for Linux.
 
 The goal of the project is to run programs compiled for Minix 3.4 by simulating the Minix system call interface.
 
+Written as part of a Bachelor's Thesis for the Theoretical Computer Science Department at Jagiellonian University.
+
 ## Building the project
 
 Minix Box uses Rust's `cargo` build system, available as part of the [`rustup` toolchain](https://rustup.rs/).
